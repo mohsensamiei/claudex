@@ -58,6 +58,17 @@ func NewChatCompletionsHandler(
 }
 
 // Handle processes chat completion requests.
+//
+//	@Summary		Create chat completion
+//	@Description	Creates an OpenAI-compatible chat completion, proxied to the Claude CLI. Supports streaming, tool calling, and vision.
+//	@Tags			chat
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		models.ChatCompletionRequest	true	"Chat completion request"
+//	@Success		200		{object}	models.ChatCompletionResponse
+//	@Failure		400		{object}	models.ErrorResponse
+//	@Failure		500		{object}	models.ErrorResponse
+//	@Router			/v1/chat/completions [post]
 func (h *ChatCompletionsHandler) Handle(c *fiber.Ctx) error {
 	start := time.Now()
 	h.metrics.IncrementActive()

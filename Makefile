@@ -1,9 +1,14 @@
-.PHONY: build run test lint clean docker-build fmt vet test-e2e test-e2e-setup
+.PHONY: build run test coverage lint clean docker-build fmt vet swagger tidy test-e2e test-e2e-setup check
 
 # Build variables
 BINARY_NAME=server
 BUILD_DIR=bin
 CMD_DIR=cmd/server
+MAIN=$(CMD_DIR)/main.go
+DOCS_DIR=docs
+
+# Tools
+SWAG ?= swag
 
 # Build the binary
 build:
@@ -33,6 +38,16 @@ vet:
 # Run linter (requires golangci-lint)
 lint:
 	golangci-lint run
+
+# Generate Swagger/OpenAPI docs from code annotations.
+# Install swag with: go install github.com/swaggo/swag/cmd/swag@latest
+swagger:
+	@command -v $(SWAG) >/dev/null 2>&1 || { echo "swag not found; install with: go install github.com/swaggo/swag/cmd/swag@latest"; exit 1; }
+	$(SWAG) init -g $(MAIN) -o $(DOCS_DIR) --parseDependency --parseInternal
+
+# Tidy go module dependencies
+tidy:
+	go mod tidy
 
 # Build Docker image
 docker-build:

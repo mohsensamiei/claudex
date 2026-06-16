@@ -100,9 +100,9 @@ type JSONRPCError struct {
 
 // MCPInitializeParams represents the initialize request parameters.
 type MCPInitializeParams struct {
-	ProtocolVersion string                 `json:"protocolVersion"`
-	Capabilities    MCPClientCapabilities  `json:"capabilities"`
-	ClientInfo      MCPImplementationInfo  `json:"clientInfo"`
+	ProtocolVersion string                `json:"protocolVersion"`
+	Capabilities    MCPClientCapabilities `json:"capabilities"`
+	ClientInfo      MCPImplementationInfo `json:"clientInfo"`
 }
 
 // MCPClientCapabilities represents client capabilities.
@@ -124,19 +124,19 @@ type MCPImplementationInfo struct {
 
 // MCPInitializeResult represents the initialize response result.
 type MCPInitializeResult struct {
-	ProtocolVersion string                 `json:"protocolVersion"`
-	Capabilities    MCPServerCapabilities  `json:"capabilities"`
-	ServerInfo      MCPImplementationInfo  `json:"serverInfo"`
-	Instructions    string                 `json:"instructions,omitempty"`
+	ProtocolVersion string                `json:"protocolVersion"`
+	Capabilities    MCPServerCapabilities `json:"capabilities"`
+	ServerInfo      MCPImplementationInfo `json:"serverInfo"`
+	Instructions    string                `json:"instructions,omitempty"`
 }
 
 // MCPServerCapabilities represents server capabilities.
 type MCPServerCapabilities struct {
-	Experimental map[string]interface{} `json:"experimental,omitempty"`
-	Logging      interface{}            `json:"logging,omitempty"`
-	Prompts      *MCPPromptsCapability  `json:"prompts,omitempty"`
+	Experimental map[string]interface{}  `json:"experimental,omitempty"`
+	Logging      interface{}             `json:"logging,omitempty"`
+	Prompts      *MCPPromptsCapability   `json:"prompts,omitempty"`
 	Resources    *MCPResourcesCapability `json:"resources,omitempty"`
-	Tools        *MCPToolsCapability    `json:"tools,omitempty"`
+	Tools        *MCPToolsCapability     `json:"tools,omitempty"`
 }
 
 // MCPPromptsCapability represents prompts capability.

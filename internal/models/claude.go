@@ -11,16 +11,16 @@ type ClaudeJSONResponse struct {
 
 // ClaudeStreamMessage represents a streaming Claude CLI output line (NDJSON).
 type ClaudeStreamMessage struct {
-	Type      string              `json:"type"`
-	SessionID string              `json:"session_id,omitempty"`
-	Message   *ClaudeMessage      `json:"message,omitempty"`
-	Result    string              `json:"result,omitempty"`
-	Event     *ClaudeStreamEvent  `json:"event,omitempty"` // For stream_event type
+	Type      string             `json:"type"`
+	SessionID string             `json:"session_id,omitempty"`
+	Message   *ClaudeMessage     `json:"message,omitempty"`
+	Result    string             `json:"result,omitempty"`
+	Event     *ClaudeStreamEvent `json:"event,omitempty"` // For stream_event type
 }
 
 // ClaudeStreamEvent represents a streaming event from Claude CLI with --include-partial-messages.
 type ClaudeStreamEvent struct {
-	Type  string            `json:"type"`  // message_start, content_block_start, content_block_delta, content_block_stop, message_delta, message_stop
+	Type  string            `json:"type"` // message_start, content_block_start, content_block_delta, content_block_stop, message_delta, message_stop
 	Index int               `json:"index,omitempty"`
 	Delta *ClaudeEventDelta `json:"delta,omitempty"`
 }
