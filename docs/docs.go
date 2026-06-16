@@ -93,6 +93,11 @@ const docTemplate = `{
         },
         "/v1/chat/completions": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates an OpenAI-compatible chat completion, proxied to the Claude CLI. Supports streaming, tool calling, and vision.",
                 "consumes": [
                     "application/json"
@@ -128,6 +133,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -139,6 +150,11 @@ const docTemplate = `{
         },
         "/v1/models": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Lists the names of the models available through the proxy.",
                 "produces": [
                     "application/json"
@@ -305,6 +321,14 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_leeaandrob_claudex_internal_models.PromptTokensDetails": {
+            "type": "object",
+            "properties": {
+                "cached_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_leeaandrob_claudex_internal_models.Tool": {
             "type": "object",
             "properties": {
@@ -341,6 +365,9 @@ const docTemplate = `{
                 "prompt_tokens": {
                     "type": "integer"
                 },
+                "prompt_tokens_details": {
+                    "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.PromptTokensDetails"
+                },
                 "total_tokens": {
                     "type": "integer"
                 }
@@ -358,6 +385,14 @@ const docTemplate = `{
                     "example": "ok"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Optional bearer token. Required only when the server is started with CLAUDEX_API_KEY set. Format: \"Bearer \u003ckey\u003e\".",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`

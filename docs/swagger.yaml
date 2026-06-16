@@ -94,6 +94,11 @@ definitions:
           $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ToolCall'
         type: array
     type: object
+  github_com_leeaandrob_claudex_internal_models.PromptTokensDetails:
+    properties:
+      cached_tokens:
+        type: integer
+    type: object
   github_com_leeaandrob_claudex_internal_models.Tool:
     properties:
       function:
@@ -118,6 +123,8 @@ definitions:
         type: integer
       prompt_tokens:
         type: integer
+      prompt_tokens_details:
+        $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.PromptTokensDetails'
       total_tokens:
         type: integer
     type: object
@@ -212,10 +219,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Create chat completion
       tags:
       - chat
@@ -231,10 +244,19 @@ paths:
             items:
               type: string
             type: array
+      security:
+      - BearerAuth: []
       summary: List models
       tags:
       - models
 schemes:
 - http
 - https
+securityDefinitions:
+  BearerAuth:
+    description: 'Optional bearer token. Required only when the server is started
+      with CLAUDEX_API_KEY set. Format: "Bearer <key>".'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

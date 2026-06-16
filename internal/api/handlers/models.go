@@ -23,6 +23,7 @@ var supportedModels = []string{
 //	@Tags			models
 //	@Produce		json
 //	@Success		200	{array}	string
+//	@Security		BearerAuth
 //	@Router			/v1/models [get]
 func ListModels(c *fiber.Ctx) error {
 	return c.JSON(supportedModels)

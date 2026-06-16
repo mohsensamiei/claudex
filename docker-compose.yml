@@ -9,6 +9,8 @@ services:
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Optional: when set, /v1/* routes require "Authorization: Bearer <key>".
+      - CLAUDEX_API_KEY=${CLAUDEX_API_KEY:-}
     volumes:
       # Only mount credentials file to avoid MCP config issues
       - ~/.claude/.credentials.json:/home/appuser/.claude/.credentials.json:ro

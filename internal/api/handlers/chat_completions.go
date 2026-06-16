@@ -67,7 +67,9 @@ func NewChatCompletionsHandler(
 //	@Param			request	body		models.ChatCompletionRequest	true	"Chat completion request"
 //	@Success		200		{object}	models.ChatCompletionResponse
 //	@Failure		400		{object}	models.ErrorResponse
+//	@Failure		401		{object}	models.ErrorResponse
 //	@Failure		500		{object}	models.ErrorResponse
+//	@Security		BearerAuth
 //	@Router			/v1/chat/completions [post]
 func (h *ChatCompletionsHandler) Handle(c *fiber.Ctx) error {
 	start := time.Now()

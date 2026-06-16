@@ -25,6 +25,11 @@ import (
 //	@BasePath		/
 //	@schemes		http https
 
+//	@securityDefinitions.apikey	BearerAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Optional bearer token. Required only when the server is started with CLAUDEX_API_KEY set. Format: "Bearer <key>".
+
 func main() {
 	// Configuration from environment
 	port := getEnv("PORT", "8080")
