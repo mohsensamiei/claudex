@@ -122,6 +122,7 @@ func (h *ChatCompletionsHandler) handleNonStreamingCLI(c *fiber.Ctx, req *models
 	// Execute Claude CLI with messages (supports images and tools via stream-json)
 	output, err := h.executor.ExecuteWithMessages(ctx, req)
 	if err != nil {
+		h.logger.Error("claude execution failed", "error", err.Error(), "model", req.Model)
 		h.metrics.RecordError("claude_error")
 		h.metrics.RecordRequest("error", false, time.Since(start).Seconds())
 		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{

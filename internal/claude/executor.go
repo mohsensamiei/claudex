@@ -151,23 +151,11 @@ func (e *Executor) executeWithStreamJSON(ctx context.Context, messages []models.
 
 	cmd := exec.CommandContext(ctx, "claude", args...)
 
-	// Convert messages to stream-json format
-	var inputLines []string
-	for _, msg := range messages {
-		if msg.Role == "system" {
-			continue // System prompt handled separately
-		}
-
-		streamMsg := e.convertToStreamJSON(msg)
-		jsonBytes, err := json.Marshal(streamMsg)
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal message: %w", err)
-		}
-		inputLines = append(inputLines, string(jsonBytes))
+	// Convert messages to stream-json (NDJSON) input.
+	input, err := e.buildStreamJSONInput(messages)
+	if err != nil {
+		return "", err
 	}
-
-	// Join with newlines for NDJSON
-	input := strings.Join(inputLines, "\n")
 	cmd.Stdin = bytes.NewReader([]byte(input))
 
 	var stdout, stderr bytes.Buffer
@@ -175,11 +163,7 @@ func (e *Executor) executeWithStreamJSON(ctx context.Context, messages []models.
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		stderrStr := stderr.String()
-		if stderrStr != "" {
-			return "", fmt.Errorf("claude cli error: %s", stderrStr)
-		}
-		return "", fmt.Errorf("claude cli error: %w", err)
+		return "", cliError(err, stdout.String(), stderr.String())
 	}
 
 	// Parse stream-json output and extract the result
@@ -273,22 +257,11 @@ func (e *Executor) executeStreamingWithStreamJSON(ctx context.Context, messages 
 
 	cmd := exec.CommandContext(ctx, "claude", args...)
 
-	// Convert messages to stream-json format
-	var inputLines []string
-	for _, msg := range messages {
-		if msg.Role == "system" {
-			continue // System prompt handled separately
-		}
-
-		streamMsg := e.convertToStreamJSON(msg)
-		jsonBytes, err := json.Marshal(streamMsg)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal message: %w", err)
-		}
-		inputLines = append(inputLines, string(jsonBytes))
+	// Convert messages to stream-json (NDJSON) input.
+	input, err := e.buildStreamJSONInput(messages)
+	if err != nil {
+		return nil, nil, err
 	}
-
-	input := strings.Join(inputLines, "\n")
 	cmd.Stdin = bytes.NewReader([]byte(input))
 
 	stdout, err := cmd.StdoutPipe()
@@ -347,6 +320,70 @@ func (e *Executor) executeStreamingWithStreamJSON(ctx context.Context, messages 
 	return chunks, errChan, nil
 }
 
+// buildStreamJSONInput converts OpenAI-style messages into the NDJSON the Claude
+// CLI expects on stdin. The system role is skipped (handled via --system-prompt),
+// and any message that converts to empty content is dropped: the Claude CLI
+// rejects empty-content turns, which otherwise fails the whole request with a
+// bare "exit status 1".
+func (e *Executor) buildStreamJSONInput(messages []models.Message) (string, error) {
+	var inputLines []string
+	for _, msg := range messages {
+		if msg.Role == "system" {
+			continue // System prompt handled separately
+		}
+
+		streamMsg := e.convertToStreamJSON(msg)
+		if streamContentIsEmpty(streamMsg.Message.Content) {
+			continue
+		}
+
+		jsonBytes, err := json.Marshal(streamMsg)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal message: %w", err)
+		}
+		inputLines = append(inputLines, string(jsonBytes))
+	}
+
+	return strings.Join(inputLines, "\n"), nil
+}
+
+// streamContentIsEmpty reports whether a stream-json content value carries no
+// usable content (nil, blank string, or no content blocks).
+func streamContentIsEmpty(content any) bool {
+	switch c := content.(type) {
+	case nil:
+		return true
+	case string:
+		return strings.TrimSpace(c) == ""
+	case []StreamJSONContent:
+		return len(c) == 0
+	}
+	return false
+}
+
+// renderToolCalls renders OpenAI tool_calls as readable text so an assistant
+// turn that only carries tool calls (content null) is not sent empty.
+func renderToolCalls(toolCalls []models.ToolCall) string {
+	var parts []string
+	for _, tc := range toolCalls {
+		parts = append(parts, fmt.Sprintf("[Tool call %s: %s(%s)]", tc.ID, tc.Function.Name, tc.Function.Arguments))
+	}
+	return strings.Join(parts, "\n")
+}
+
+// cliError builds an error from a failed Claude CLI run, preferring stderr but
+// falling back to stdout (stream-json mode writes API errors there) so the
+// underlying cause is never lost behind a bare exit status.
+func cliError(runErr error, stdout, stderr string) error {
+	if s := strings.TrimSpace(stderr); s != "" {
+		return fmt.Errorf("claude cli error: %s", s)
+	}
+	if s := strings.TrimSpace(stdout); s != "" {
+		return fmt.Errorf("claude cli error: %w: %s", runErr, s)
+	}
+	return fmt.Errorf("claude cli error: %w", runErr)
+}
+
 // convertToStreamJSON converts an OpenAI message to stream-json format.
 func (e *Executor) convertToStreamJSON(msg models.Message) StreamJSONMessage {
 	streamMsg := StreamJSONMessage{
@@ -359,6 +396,12 @@ func (e *Executor) convertToStreamJSON(msg models.Message) StreamJSONMessage {
 	// Map OpenAI roles to Claude roles
 	if msg.Role == "assistant" {
 		streamMsg.Type = "assistant"
+		// An assistant turn that only carries tool_calls has null/empty
+		// content; render the calls as text so we never emit an empty turn.
+		if strings.TrimSpace(msg.GetTextContent()) == "" && len(msg.ToolCalls) > 0 {
+			streamMsg.Message.Content = renderToolCalls(msg.ToolCalls)
+			return streamMsg
+		}
 	} else if msg.Role == "tool" {
 		// Tool results are sent as user messages
 		streamMsg.Type = "user"
@@ -606,11 +649,7 @@ func (e *Executor) ExecuteNonStreaming(ctx context.Context, prompt, systemPrompt
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		stderrStr := stderr.String()
-		if stderrStr != "" {
-			return "", fmt.Errorf("claude cli error: %s", stderrStr)
-		}
-		return "", fmt.Errorf("claude cli error: %w", err)
+		return "", cliError(err, stdout.String(), stderr.String())
 	}
 
 	return stdout.String(), nil
