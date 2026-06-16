@@ -86,14 +86,7 @@ func (e *Executor) ExecuteWithMessages(ctx context.Context, req *models.ChatComp
 	// Build system prompt with tools if present
 	systemPrompt := e.buildSystemPromptWithTools(req)
 
-	// Check if we need stream-json input (for images or tools)
-	hasImages := e.messagesHaveImages(req.Messages)
-	hasTools := len(req.Tools) > 0
-
-	// Use stream-json for images or tools, or when content is complex (arrays)
-	useStreamJSON := hasImages || hasTools || e.messagesHaveComplexContent(req.Messages)
-
-	if useStreamJSON {
+	if e.useStreamJSON(req.Messages) {
 		return e.executeWithStreamJSON(ctx, req.Messages, systemPrompt, req.Model, req.Stream)
 	}
 
@@ -105,6 +98,15 @@ func (e *Executor) ExecuteWithMessages(ctx context.Context, req *models.ChatComp
 		return "", fmt.Errorf("use ExecuteStreamingWithMessages for streaming")
 	}
 	return e.ExecuteNonStreaming(ctx, prompt, systemPrompt, req.Model)
+}
+
+// useStreamJSON reports whether the request must use the stream-json input
+// format. Only image/array content needs it. Tools do NOT: tool definitions
+// travel in the system prompt and tool histories render as text. stream-json
+// input mishandles assistant/tool_result turns (the CLI errors with
+// "tool_use_id is not an Object"), so we keep tool conversations in text mode.
+func (e *Executor) useStreamJSON(messages []models.Message) bool {
+	return e.messagesHaveImages(messages) || e.messagesHaveComplexContent(messages)
 }
 
 // messagesHaveComplexContent checks if any message has array content (potential images).
@@ -123,14 +125,7 @@ func (e *Executor) ExecuteStreamingWithMessages(ctx context.Context, req *models
 	// Build system prompt with tools if present
 	systemPrompt := e.buildSystemPromptWithTools(req)
 
-	// Check if we need stream-json input (for images or tools)
-	hasImages := e.messagesHaveImages(req.Messages)
-	hasTools := len(req.Tools) > 0
-
-	// Use stream-json for images or tools, or when content is complex (arrays)
-	useStreamJSON := hasImages || hasTools || e.messagesHaveComplexContent(req.Messages)
-
-	if useStreamJSON {
+	if e.useStreamJSON(req.Messages) {
 		return e.executeStreamingWithStreamJSON(ctx, req.Messages, systemPrompt, req.Model)
 	}
 
@@ -618,7 +613,12 @@ func (e *Executor) messagesToPrompt(messages []models.Message) string {
 		case "user":
 			parts = append(parts, "User: "+msg.GetTextContent())
 		case "assistant":
-			parts = append(parts, "Assistant: "+msg.GetTextContent())
+			text := msg.GetTextContent()
+			if strings.TrimSpace(text) == "" && len(msg.ToolCalls) > 0 {
+				// Assistant turn that only carries tool_calls (content null).
+				text = renderToolCalls(msg.ToolCalls)
+			}
+			parts = append(parts, "Assistant: "+text)
 		case "tool":
 			parts = append(parts, fmt.Sprintf("[Tool Result for %s]: %s", msg.ToolCallID, msg.GetTextContent()))
 		}
