@@ -1,4 +1,18 @@
-# Runtime stage with pre-built binary (amd64)
+# Build stage - compile the Go binary (amd64)
+FROM --platform=linux/amd64 golang:1.24-alpine AS builder
+
+WORKDIR /src
+
+# Cache dependencies first
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source and build
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o /out/server ./cmd/server
+
+# Runtime stage (amd64)
 FROM --platform=linux/amd64 node:22-alpine
 
 WORKDIR /app
@@ -17,8 +31,8 @@ RUN mkdir -p /home/appuser/.claude && \
     chown -R appuser:appuser /home/appuser && \
     chmod 755 /home/appuser/.claude
 
-# Copy pre-built binary and entrypoint
-COPY server-amd64 /app/server
+# Copy built binary from the build stage and entrypoint
+COPY --from=builder /out/server /app/server
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 
 # Change ownership and permissions
