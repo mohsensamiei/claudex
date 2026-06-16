@@ -31,6 +31,7 @@ func main() {
 	logLevel := getEnv("LOG_LEVEL", "info")
 	otlpEndpoint := getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 	serviceName := getEnv("SERVICE_NAME", "openai-claude-proxy")
+	apiKey := getEnv("CLAUDEX_API_KEY", "")
 
 	// Initialize logger
 	logger := observability.NewLogger(logLevel)
@@ -38,6 +39,7 @@ func main() {
 		"port", port,
 		"log_level", logLevel,
 		"otlp_endpoint", otlpEndpoint,
+		"api_key_auth", apiKey != "",
 	)
 
 	// Initialize tracing (if endpoint configured)
@@ -98,7 +100,7 @@ func main() {
 	app.Use(recover.New())
 
 	// Register routes
-	api.RegisterRoutes(app, logger, metrics, executor, mcpManager)
+	api.RegisterRoutes(app, logger, metrics, executor, mcpManager, apiKey)
 
 	// Graceful shutdown
 	go func() {

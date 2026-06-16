@@ -193,6 +193,27 @@ once the server is running. The raw OpenAPI spec is served at `/swagger/doc.json
 | `/metrics` | GET | Prometheus metrics |
 | `/swagger/index.html` | GET | Interactive Swagger UI |
 
+### Authentication
+
+By default the API is open. Set the `CLAUDEX_API_KEY` environment variable to
+require a bearer token on the `/v1/*` routes:
+
+```bash
+CLAUDEX_API_KEY=my-secret-key ./claudex
+```
+
+Clients then pass the key as a bearer token (works with any OpenAI SDK via the
+`api_key` field):
+
+```bash
+curl http://localhost:8080/v1/models \
+  -H "Authorization: Bearer my-secret-key"
+```
+
+Requests without a valid key receive `401 Unauthorized`. The operational
+endpoints (`/livez`, `/readyz`, `/healthz`, `/metrics`, `/swagger/*`) stay open
+regardless, so health probes and metrics scraping keep working.
+
 ### Compatibility Matrix
 
 | Feature | Status |
@@ -212,6 +233,7 @@ once the server is running. The raw OpenAPI spec is served at `/swagger/doc.json
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8080` | Server port |
+| `CLAUDEX_API_KEY` | - | When set, requires `Authorization: Bearer <key>` on `/v1/*` routes. Unset = open access (default) |
 | `LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 | `REQUEST_TIMEOUT` | `600` | Request timeout in seconds |
 | `CLAUDEX_MCP_CONFIG_PATH` | - | Path to MCP configuration file |

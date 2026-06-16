@@ -19,7 +19,10 @@ import (
 )
 
 // RegisterRoutes registers all API routes.
-func RegisterRoutes(app *fiber.App, logger *observability.Logger, metrics *observability.Metrics, executor *claude.Executor, mcpManager *mcp.Manager) {
+//
+// apiKey, when non-empty, enables bearer-token authentication on the /v1
+// routes. An empty apiKey leaves the API open (default behaviour).
+func RegisterRoutes(app *fiber.App, logger *observability.Logger, metrics *observability.Metrics, executor *claude.Executor, mcpManager *mcp.Manager, apiKey string) {
 	// Operational endpoints (health probes + metrics) are registered first so
 	// they short-circuit before the tracing/logging middleware below and don't
 	// pollute traces, logs, or request metrics with probe traffic.
@@ -53,8 +56,9 @@ func RegisterRoutes(app *fiber.App, logger *observability.Logger, metrics *obser
 	conv := converter.NewConverter()
 	chatHandler := handlers.NewChatCompletionsHandler(executor, parser, conv, mcpManager, metrics, logger)
 
-	// API routes
-	v1 := app.Group("/v1")
+	// API routes. The auth middleware is scoped to the /v1 group so the
+	// operational endpoints (health probes, metrics, swagger) stay open.
+	v1 := app.Group("/v1", middleware.APIKeyAuth(apiKey))
 	v1.Post("/chat/completions", chatHandler.Handle)
 
 	// Models endpoint (hardcoded catalog)
