@@ -126,19 +126,30 @@ func (c *Converter) ClaudeToOpenAIResponse(claudeResp *models.ClaudeJSONResponse
 }
 
 // claudeUsageToOpenAI maps the Claude CLI usage report to OpenAI's usage shape.
-// Cache tokens count as prompt (input) tokens. Returns a zero-valued Usage when
-// the CLI did not report usage.
+//
+// PromptTokens follows the OpenAI convention and includes both fresh input and
+// cache tokens, so cost computed from it stays correct. The cache-read portion
+// is surfaced separately via PromptTokensDetails.CachedTokens so callers can see
+// that most of a large prompt_tokens value is the cached, fixed prefix (the
+// Claude CLI system prompt + tool definitions) rather than their own input.
+// Returns a zero-valued Usage when the CLI did not report usage.
 func claudeUsageToOpenAI(u *models.ClaudeUsage) models.Usage {
 	if u == nil {
 		return models.Usage{}
 	}
 
 	promptTokens := u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens
-	return models.Usage{
+	usage := models.Usage{
 		PromptTokens:     promptTokens,
 		CompletionTokens: u.OutputTokens,
 		TotalTokens:      promptTokens + u.OutputTokens,
 	}
+	if u.CacheReadInputTokens > 0 {
+		usage.PromptTokensDetails = &models.PromptTokensDetails{
+			CachedTokens: u.CacheReadInputTokens,
+		}
+	}
+	return usage
 }
 
 // ExtractToolCalls attempts to extract tool calls from Claude's response text.

@@ -211,10 +211,23 @@ type Choice struct {
 }
 
 // Usage represents token usage statistics.
+//
+// PromptTokens follows the OpenAI convention and includes any cached input
+// tokens. The breakdown of how many of those were served from cache is exposed
+// via PromptTokensDetails.CachedTokens so consumers can tell apart the fixed
+// (cacheable) prefix from the real per-request input.
 type Usage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens        int                  `json:"prompt_tokens"`
+	CompletionTokens    int                  `json:"completion_tokens"`
+	TotalTokens         int                  `json:"total_tokens"`
+	PromptTokensDetails *PromptTokensDetails `json:"prompt_tokens_details,omitempty"`
+}
+
+// PromptTokensDetails breaks down the prompt token count, matching OpenAI's
+// usage shape. CachedTokens is the subset of PromptTokens that was read from
+// the prompt cache (billed at a fraction of the normal input rate).
+type PromptTokensDetails struct {
+	CachedTokens int `json:"cached_tokens"`
 }
 
 // ChatCompletionChunk represents a streaming chunk response.
