@@ -20,6 +20,40 @@ func NewExecutor() *Executor {
 	return &Executor{}
 }
 
+// resolveModelFlag maps an OpenAI-style model identifier from the request to a
+// value the Claude CLI accepts via --model. It returns an empty string when no
+// model was requested, in which case the CLI default is used.
+//
+// The CLI accepts the short aliases "opus", "sonnet", and "haiku" as well as
+// full model IDs. We normalize known family names to aliases and pass anything
+// else through unchanged so future/explicit IDs still work.
+func resolveModelFlag(model string) string {
+	m := strings.TrimSpace(strings.ToLower(model))
+	if m == "" {
+		return ""
+	}
+
+	switch {
+	case strings.Contains(m, "haiku"):
+		return "haiku"
+	case strings.Contains(m, "sonnet"):
+		return "sonnet"
+	case strings.Contains(m, "opus"):
+		return "opus"
+	default:
+		// Unknown identifier: pass the original value through to the CLI.
+		return model
+	}
+}
+
+// appendModelFlag appends --model <value> to args when a model is requested.
+func appendModelFlag(args []string, model string) []string {
+	if flag := resolveModelFlag(model); flag != "" {
+		args = append(args, "--model", flag)
+	}
+	return args
+}
+
 // StreamJSONMessage represents a message in stream-json input format.
 type StreamJSONMessage struct {
 	Type    string                `json:"type"`
@@ -60,7 +94,7 @@ func (e *Executor) ExecuteWithMessages(ctx context.Context, req *models.ChatComp
 	useStreamJSON := hasImages || hasTools || e.messagesHaveComplexContent(req.Messages)
 
 	if useStreamJSON {
-		return e.executeWithStreamJSON(ctx, req.Messages, systemPrompt, req.Stream)
+		return e.executeWithStreamJSON(ctx, req.Messages, systemPrompt, req.Model, req.Stream)
 	}
 
 	// Simple text mode
@@ -70,7 +104,7 @@ func (e *Executor) ExecuteWithMessages(ctx context.Context, req *models.ChatComp
 		// This method is for non-streaming only
 		return "", fmt.Errorf("use ExecuteStreamingWithMessages for streaming")
 	}
-	return e.ExecuteNonStreaming(ctx, prompt, systemPrompt)
+	return e.ExecuteNonStreaming(ctx, prompt, systemPrompt, req.Model)
 }
 
 // messagesHaveComplexContent checks if any message has array content (potential images).
@@ -97,18 +131,19 @@ func (e *Executor) ExecuteStreamingWithMessages(ctx context.Context, req *models
 	useStreamJSON := hasImages || hasTools || e.messagesHaveComplexContent(req.Messages)
 
 	if useStreamJSON {
-		return e.executeStreamingWithStreamJSON(ctx, req.Messages, systemPrompt)
+		return e.executeStreamingWithStreamJSON(ctx, req.Messages, systemPrompt, req.Model)
 	}
 
 	// Simple text mode
 	prompt := e.messagesToPrompt(req.Messages)
-	return e.ExecuteStreaming(ctx, prompt, systemPrompt)
+	return e.ExecuteStreaming(ctx, prompt, systemPrompt, req.Model)
 }
 
 // executeWithStreamJSON executes using stream-json input format (for images).
-func (e *Executor) executeWithStreamJSON(ctx context.Context, messages []models.Message, systemPrompt string, stream bool) (string, error) {
+func (e *Executor) executeWithStreamJSON(ctx context.Context, messages []models.Message, systemPrompt, model string, stream bool) (string, error) {
 	// Note: stream-json input requires stream-json output, and --verbose is required with -p
 	args := []string{"-p", "--verbose", "--input-format", "stream-json", "--output-format", "stream-json", "--dangerously-skip-permissions", "--no-chrome"}
+	args = appendModelFlag(args, model)
 
 	if systemPrompt != "" {
 		args = append(args, "--system-prompt", systemPrompt)
@@ -228,8 +263,9 @@ func (e *Executor) parseStreamJSONOutput(output string) (string, error) {
 }
 
 // executeStreamingWithStreamJSON executes streaming with stream-json input format.
-func (e *Executor) executeStreamingWithStreamJSON(ctx context.Context, messages []models.Message, systemPrompt string) (<-chan string, <-chan error, error) {
+func (e *Executor) executeStreamingWithStreamJSON(ctx context.Context, messages []models.Message, systemPrompt, model string) (<-chan string, <-chan error, error) {
 	args := []string{"-p", "--verbose", "--input-format", "stream-json", "--output-format", "stream-json", "--include-partial-messages", "--dangerously-skip-permissions", "--no-chrome"}
+	args = appendModelFlag(args, model)
 
 	if systemPrompt != "" {
 		args = append(args, "--system-prompt", systemPrompt)
@@ -553,8 +589,9 @@ func (e *Executor) messagesToPrompt(messages []models.Message) string {
 }
 
 // ExecuteNonStreaming executes Claude CLI and returns the complete response.
-func (e *Executor) ExecuteNonStreaming(ctx context.Context, prompt, systemPrompt string) (string, error) {
+func (e *Executor) ExecuteNonStreaming(ctx context.Context, prompt, systemPrompt, model string) (string, error) {
 	args := []string{"-p", "--output-format", "json", "--dangerously-skip-permissions", "--no-chrome"}
+	args = appendModelFlag(args, model)
 
 	if systemPrompt != "" {
 		args = append(args, "--system-prompt", systemPrompt)
@@ -580,8 +617,9 @@ func (e *Executor) ExecuteNonStreaming(ctx context.Context, prompt, systemPrompt
 }
 
 // ExecuteStreaming executes Claude CLI with streaming output.
-func (e *Executor) ExecuteStreaming(ctx context.Context, prompt, systemPrompt string) (<-chan string, <-chan error, error) {
+func (e *Executor) ExecuteStreaming(ctx context.Context, prompt, systemPrompt, model string) (<-chan string, <-chan error, error) {
 	args := []string{"-p", "--verbose", "--output-format", "stream-json", "--include-partial-messages", "--dangerously-skip-permissions", "--no-chrome"}
+	args = appendModelFlag(args, model)
 
 	if systemPrompt != "" {
 		args = append(args, "--system-prompt", systemPrompt)
