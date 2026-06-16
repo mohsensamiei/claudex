@@ -94,31 +94,6 @@ definitions:
           $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ToolCall'
         type: array
     type: object
-  github_com_leeaandrob_claudex_internal_models.Model:
-    properties:
-      created:
-        example: 1719792000
-        type: integer
-      id:
-        example: claude-sonnet-4-6
-        type: string
-      object:
-        example: model
-        type: string
-      owned_by:
-        example: anthropic
-        type: string
-    type: object
-  github_com_leeaandrob_claudex_internal_models.ModelList:
-    properties:
-      data:
-        items:
-          $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.Model'
-        type: array
-      object:
-        example: list
-        type: string
-    type: object
   github_com_leeaandrob_claudex_internal_models.Tool:
     properties:
       function:
@@ -246,39 +221,17 @@ paths:
       - chat
   /v1/models:
     get:
-      description: Lists the models available through the proxy, in an OpenAI-compatible
-        format.
+      description: Lists the names of the models available through the proxy.
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ModelList'
+            items:
+              type: string
+            type: array
       summary: List models
-      tags:
-      - models
-  /v1/models/{model}:
-    get:
-      description: Retrieves a single model by its ID, in an OpenAI-compatible format.
-      parameters:
-      - description: Model ID
-        in: path
-        name: model
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.Model'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse'
-      summary: Retrieve a model
       tags:
       - models
 schemes:

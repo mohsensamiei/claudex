@@ -173,13 +173,6 @@ mcp:
 CLAUDEX_MCP_CONFIG_PATH=config/claudex.yaml ./server
 ```
 
-### MCP API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/mcp/tools` | GET | List all available MCP tools |
-| `/v1/mcp/servers` | GET | List connected MCP servers |
-
 MCP tools are automatically available in chat completions when configured.
 
 ## API Reference
@@ -193,10 +186,7 @@ once the server is running. The raw OpenAPI spec is served at `/swagger/doc.json
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/v1/chat/completions` | POST | OpenAI-compatible chat completions |
-| `/v1/models` | GET | List available models |
-| `/v1/models/{model}` | GET | Retrieve a single model |
-| `/v1/mcp/tools` | GET | List MCP tools |
-| `/v1/mcp/servers` | GET | List MCP servers |
+| `/v1/models` | GET | List available model names |
 | `/livez` | GET | Liveness probe |
 | `/readyz` | GET | Readiness probe (200 when Claude CLI is available, else 503) |
 | `/healthz` | GET | Health check (200 when healthy, else 503) |

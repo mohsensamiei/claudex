@@ -57,25 +57,6 @@ func RegisterRoutes(app *fiber.App, logger *observability.Logger, metrics *obser
 	v1 := app.Group("/v1")
 	v1.Post("/chat/completions", chatHandler.Handle)
 
-	// Models endpoints (hardcoded catalog)
+	// Models endpoint (hardcoded catalog)
 	v1.Get("/models", handlers.ListModels)
-	v1.Get("/models/:model", handlers.GetModel)
-
-	// MCP tools endpoint (for debugging/discovery)
-	v1.Get("/mcp/tools", func(c *fiber.Ctx) error {
-		tools := mcpManager.GetAllTools()
-		return c.JSON(fiber.Map{
-			"tools": tools,
-			"count": len(tools),
-		})
-	})
-
-	// MCP servers endpoint (for debugging/discovery)
-	v1.Get("/mcp/servers", func(c *fiber.Ctx) error {
-		clients := mcpManager.GetClients()
-		return c.JSON(fiber.Map{
-			"servers": clients,
-			"count":   len(clients),
-		})
-	})
 }

@@ -139,7 +139,7 @@ const docTemplate = `{
         },
         "/v1/models": {
             "get": {
-                "description": "Lists the models available through the proxy, in an OpenAI-compatible format.",
+                "description": "Lists the names of the models available through the proxy.",
                 "produces": [
                     "application/json"
                 ],
@@ -151,42 +151,10 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ModelList"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/models/{model}": {
-            "get": {
-                "description": "Retrieves a single model by its ID, in an OpenAI-compatible format.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "models"
-                ],
-                "summary": "Retrieve a model",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Model ID",
-                        "name": "model",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.Model"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse"
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -334,42 +302,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ToolCall"
                     }
-                }
-            }
-        },
-        "github_com_leeaandrob_claudex_internal_models.Model": {
-            "type": "object",
-            "properties": {
-                "created": {
-                    "type": "integer",
-                    "example": 1719792000
-                },
-                "id": {
-                    "type": "string",
-                    "example": "claude-sonnet-4-6"
-                },
-                "object": {
-                    "type": "string",
-                    "example": "model"
-                },
-                "owned_by": {
-                    "type": "string",
-                    "example": "anthropic"
-                }
-            }
-        },
-        "github_com_leeaandrob_claudex_internal_models.ModelList": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.Model"
-                    }
-                },
-                "object": {
-                    "type": "string",
-                    "example": "list"
                 }
             }
         },
