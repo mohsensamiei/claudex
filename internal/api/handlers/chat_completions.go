@@ -254,6 +254,15 @@ func (h *ChatCompletionsHandler) handleStreamingCLI(c *fiber.Ctx, req *models.Ch
 
 	completionID := converter.GenerateCompletionID()
 
+	// When tools are present we cannot stream incrementally: the model emits a
+	// tool call as a JSON block inside its text output, and whether the turn is a
+	// tool call is only knowable after the whole response is seen. So we buffer
+	// the full response, detect tool calls with the same fence-based extraction
+	// used in non-streaming, and emulate an SSE stream from the result.
+	if len(req.Tools) > 0 {
+		return h.handleStreamingCLIWithTools(c, req, start, completionID)
+	}
+
 	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
 		defer func() {
 			h.metrics.RecordRequest("success", true, time.Since(start).Seconds())
@@ -325,6 +334,121 @@ func (h *ChatCompletionsHandler) handleStreamingCLI(c *fiber.Ctx, req *models.Ch
 	}))
 
 	return nil
+}
+
+// handleStreamingCLIWithTools serves a streaming request that carries tool
+// definitions. Because tool calls are emulated via the system prompt (the model
+// returns a JSON block in its text), real token streaming is impossible: we must
+// see the full response before we can tell a tool call from prose. We therefore
+// run the non-streaming path — identical extraction and MCP handling as
+// handleNonStreamingCLI — then emulate the SSE stream from the final response.
+func (h *ChatCompletionsHandler) handleStreamingCLIWithTools(c *fiber.Ctx, req *models.ChatCompletionRequest, start time.Time, completionID string) error {
+	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
+		defer func() {
+			h.metrics.RecordRequest("success", true, time.Since(start).Seconds())
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), getRequestTimeout())
+		defer cancel()
+
+		claudeStart := time.Now()
+
+		// Execute without streaming so we have the complete output to inspect.
+		bufReq := *req
+		bufReq.Stream = false
+		output, err := h.executor.ExecuteWithMessages(ctx, &bufReq)
+		if err != nil {
+			h.logger.Error("claude execution failed", "error", err.Error(), "model", req.Model)
+			h.metrics.RecordError("claude_error")
+			h.writeSSEError(w, "Failed to execute Claude: "+err.Error())
+			return
+		}
+
+		h.metrics.RecordClaudeDuration(time.Since(claudeStart).Seconds())
+
+		claudeResp, err := h.parser.ParseJSONResponse(output)
+		if err != nil {
+			h.metrics.RecordError("parse_error")
+			h.writeSSEError(w, "Failed to parse Claude response: "+err.Error())
+			return
+		}
+
+		// Same fence-based tool-call extraction as the non-streaming handler.
+		openaiResp := h.converter.ClaudeToOpenAIResponse(claudeResp, req.Model)
+
+		// Execute MCP tools server-side and continue, mirroring non-streaming.
+		if len(openaiResp.Choices) > 0 && len(openaiResp.Choices[0].Message.ToolCalls) > 0 && h.mcpManager != nil {
+			openaiResp = h.executeMCPToolCalls(ctx, openaiResp, req)
+		}
+
+		if len(openaiResp.Choices) == 0 {
+			h.writeSSEError(w, "Claude returned no choices")
+			return
+		}
+
+		h.writeEmulatedStream(w, openaiResp.Choices[0], completionID, req.Model)
+	}))
+
+	return nil
+}
+
+// writeEmulatedStream renders an already-resolved choice as an emulated SSE
+// stream: a role-only opening chunk, then either tool-call deltas terminated by
+// finish_reason "tool_calls", or text deltas terminated by finish_reason "stop",
+// followed by the [DONE] marker.
+func (h *ChatCompletionsHandler) writeEmulatedStream(w *bufio.Writer, choice models.Choice, completionID, model string) {
+	// Role-only chunk first, matching OpenAI's streaming shape.
+	h.writeSSEChunk(w, h.converter.CreateRoleChunk(completionID, model))
+
+	if len(choice.Message.ToolCalls) > 0 {
+		// Emit each tool call as: an opening chunk carrying id/type/name, then a
+		// chunk carrying the JSON arguments — the canonical OpenAI delta split.
+		for i, tc := range choice.Message.ToolCalls {
+			h.writeSSEChunk(w, h.converter.CreateToolCallChunk(completionID, model, i, tc.ID, tc.Function.Name, ""))
+			if tc.Function.Arguments != "" {
+				h.writeSSEChunk(w, h.converter.CreateToolCallChunk(completionID, model, i, "", "", tc.Function.Arguments))
+			}
+		}
+		h.writeSSEChunk(w, h.converter.CreateToolCallFinalChunk(completionID, model))
+	} else {
+		// Plain text: emulate streaming by splitting the buffered text.
+		if text, ok := choice.Message.Content.(string); ok {
+			for _, piece := range chunkText(text) {
+				h.writeSSEChunk(w, h.converter.CreateContentChunk(completionID, model, piece))
+			}
+		}
+		h.writeSSEChunk(w, h.converter.CreateFinalChunk(completionID, model))
+	}
+
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	w.Flush()
+}
+
+// writeSSEChunk marshals a chunk and writes it as a single SSE event.
+func (h *ChatCompletionsHandler) writeSSEChunk(w *bufio.Writer, chunk *models.ChatCompletionChunk) {
+	data, _ := json.Marshal(chunk)
+	fmt.Fprintf(w, "data: %s\n\n", data)
+	w.Flush()
+}
+
+// chunkText splits buffered text into small pieces to emulate token streaming.
+// Splitting is rune-based so multi-byte characters (e.g. Persian, emoji) are
+// never cut mid-encoding.
+func chunkText(text string) []string {
+	if text == "" {
+		return nil
+	}
+	const maxChunkRunes = 24
+	runes := []rune(text)
+	var chunks []string
+	for i := 0; i < len(runes); i += maxChunkRunes {
+		end := i + maxChunkRunes
+		if end > len(runes) {
+			end = len(runes)
+		}
+		chunks = append(chunks, string(runes[i:end]))
+	}
+	return chunks
 }
 
 // writeSSEError writes an error as an SSE event.
