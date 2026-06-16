@@ -16,6 +16,7 @@ Claudex is a lightweight proxy that exposes an OpenAI-compatible Chat Completion
 - **Vision Support** - Process images via base64 data URLs
 - **MCP Integration** - Connect external tool servers via Model Context Protocol
 - **Real-time Streaming** - Full SSE support with token-by-token delivery
+- **OpenAPI Docs** - Interactive Swagger UI served at `/swagger/index.html`
 - **Production Ready** - OpenTelemetry tracing, Prometheus metrics, structured logging
 - **Kubernetes Native** - Health checks, graceful shutdown, easy deployment
 
@@ -66,6 +67,19 @@ stream = client.chat.completions.create(
 for chunk in stream:
     if chunk.choices[0].delta.content:
         print(chunk.choices[0].delta.content, end="")
+```
+
+### Listing Models
+
+```python
+# List available models
+models = client.models.list()
+for model in models.data:
+    print(model.id)
+```
+
+```bash
+curl http://localhost:8080/v1/models
 ```
 
 ### Tool Calling
@@ -165,24 +179,29 @@ CLAUDEX_MCP_CONFIG_PATH=config/claudex.yaml ./server
 |----------|--------|-------------|
 | `/v1/mcp/tools` | GET | List all available MCP tools |
 | `/v1/mcp/servers` | GET | List connected MCP servers |
-| `/v1/mcp/tools/call` | POST | Execute an MCP tool directly |
 
 MCP tools are automatically available in chat completions when configured.
 
 ## API Reference
+
+Interactive API documentation is available via Swagger UI at
+[http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
+once the server is running. The raw OpenAPI spec is served at `/swagger/doc.json`.
 
 ### Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/v1/chat/completions` | POST | OpenAI-compatible chat completions |
+| `/v1/models` | GET | List available models |
+| `/v1/models/{model}` | GET | Retrieve a single model |
 | `/v1/mcp/tools` | GET | List MCP tools |
 | `/v1/mcp/servers` | GET | List MCP servers |
-| `/v1/mcp/tools/call` | POST | Execute MCP tool |
 | `/livez` | GET | Liveness probe |
-| `/readyz` | GET | Readiness probe |
-| `/healthz` | GET | Health check |
+| `/readyz` | GET | Readiness probe (200 when Claude CLI is available, else 503) |
+| `/healthz` | GET | Health check (200 when healthy, else 503) |
 | `/metrics` | GET | Prometheus metrics |
+| `/swagger/index.html` | GET | Interactive Swagger UI |
 
 ### Compatibility Matrix
 
@@ -252,8 +271,14 @@ make build       # Build binary
 make test        # Run unit tests
 make test-e2e    # Run E2E tests
 make lint        # Run linter
+make fmt         # Format code
+make vet         # Run go vet
+make swagger     # Regenerate OpenAPI docs from annotations
 make clean       # Clean build artifacts
 ```
+
+> Regenerating docs requires the `swag` CLI:
+> `go install github.com/swaggo/swag/cmd/swag@latest`
 
 ### Building Multi-Architecture Binaries
 

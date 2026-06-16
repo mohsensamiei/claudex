@@ -17,6 +17,14 @@ import (
 	"github.com/leeaandrob/claudex/internal/observability"
 )
 
+//	@title			Claudex API
+//	@version		1.0
+//	@description	OpenAI-compatible Chat Completions API backed by the Claude CLI, with MCP tool support.
+//	@license.name	MIT
+//	@license.url	https://opensource.org/licenses/MIT
+//	@BasePath		/
+//	@schemes		http https
+
 func main() {
 	// Configuration from environment
 	port := getEnv("PORT", "8080")

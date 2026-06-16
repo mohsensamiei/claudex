@@ -22,8 +22,8 @@ func NewExecutor() *Executor {
 
 // StreamJSONMessage represents a message in stream-json input format.
 type StreamJSONMessage struct {
-	Type    string                 `json:"type"`
-	Message StreamJSONMessageBody  `json:"message"`
+	Type    string                `json:"type"`
+	Message StreamJSONMessageBody `json:"message"`
 }
 
 // StreamJSONMessageBody represents the body of a stream-json message.
@@ -34,9 +34,9 @@ type StreamJSONMessageBody struct {
 
 // StreamJSONContent represents a content block in stream-json format.
 type StreamJSONContent struct {
-	Type   string             `json:"type"` // "text" or "image"
-	Text   string             `json:"text,omitempty"`
-	Source *StreamJSONSource  `json:"source,omitempty"`
+	Type   string            `json:"type"` // "text" or "image"
+	Text   string            `json:"text,omitempty"`
+	Source *StreamJSONSource `json:"source,omitempty"`
 }
 
 // StreamJSONSource represents an image source in stream-json format.

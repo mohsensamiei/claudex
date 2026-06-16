@@ -1,0 +1,428 @@
+{
+    "schemes": [
+        "http",
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "OpenAI-compatible Chat Completions API backed by the Claude CLI, with MCP tool support.",
+        "title": "Claudex API",
+        "contact": {},
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/healthz": {
+            "get": {
+                "description": "Returns 200 when the service is healthy (Claude CLI available), otherwise 503.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.HealthResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.HealthResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/livez": {
+            "get": {
+                "description": "Always returns 200 while the process is running.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Liveness probe",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.HealthResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/readyz": {
+            "get": {
+                "description": "Returns 200 when the Claude CLI is available, otherwise 503.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Readiness probe",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.HealthResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.HealthResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/chat/completions": {
+            "post": {
+                "description": "Creates an OpenAI-compatible chat completion, proxied to the Claude CLI. Supports streaming, tool calling, and vision.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "Create chat completion",
+                "parameters": [
+                    {
+                        "description": "Chat completion request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ChatCompletionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ChatCompletionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/models": {
+            "get": {
+                "description": "Lists the models available through the proxy, in an OpenAI-compatible format.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "models"
+                ],
+                "summary": "List models",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ModelList"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/models/{model}": {
+            "get": {
+                "description": "Retrieves a single model by its ID, in an OpenAI-compatible format.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "models"
+                ],
+                "summary": "Retrieve a model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.Model"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "github_com_leeaandrob_claudex_internal_models.ChatCompletionRequest": {
+            "type": "object",
+            "properties": {
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.Message"
+                    }
+                },
+                "model": {
+                    "type": "string"
+                },
+                "stream": {
+                    "type": "boolean"
+                },
+                "tool_choice": {
+                    "description": "string | ToolChoiceObject"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.Tool"
+                    }
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.ChatCompletionResponse": {
+            "type": "object",
+            "properties": {
+                "choices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.Choice"
+                    }
+                },
+                "created": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "object": {
+                    "type": "string"
+                },
+                "usage": {
+                    "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.Usage"
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.Choice": {
+            "type": "object",
+            "properties": {
+                "finish_reason": {
+                    "description": "\"stop\" | \"tool_calls\" | \"length\"",
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "message": {
+                    "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.Message"
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.ErrorDetail": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorDetail"
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.Function": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.FunctionCall": {
+            "type": "object",
+            "properties": {
+                "arguments": {
+                    "description": "JSON string",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.Message": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "string | []ContentPart"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "tool_call_id": {
+                    "description": "For tool result messages",
+                    "type": "string"
+                },
+                "tool_calls": {
+                    "description": "For assistant messages",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.ToolCall"
+                    }
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.Model": {
+            "type": "object",
+            "properties": {
+                "created": {
+                    "type": "integer",
+                    "example": 1719792000
+                },
+                "id": {
+                    "type": "string",
+                    "example": "claude-sonnet-4-6"
+                },
+                "object": {
+                    "type": "string",
+                    "example": "model"
+                },
+                "owned_by": {
+                    "type": "string",
+                    "example": "anthropic"
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.ModelList": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.Model"
+                    }
+                },
+                "object": {
+                    "type": "string",
+                    "example": "list"
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.Tool": {
+            "type": "object",
+            "properties": {
+                "function": {
+                    "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.Function"
+                },
+                "type": {
+                    "description": "\"function\"",
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.ToolCall": {
+            "type": "object",
+            "properties": {
+                "function": {
+                    "$ref": "#/definitions/github_com_leeaandrob_claudex_internal_models.FunctionCall"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "\"function\"",
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_leeaandrob_claudex_internal_models.Usage": {
+            "type": "object",
+            "properties": {
+                "completion_tokens": {
+                    "type": "integer"
+                },
+                "prompt_tokens": {
+                    "type": "integer"
+                },
+                "total_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.HealthResponse": {
+            "type": "object",
+            "properties": {
+                "claude_cli": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "status": {
+                    "type": "string",
+                    "example": "ok"
+                }
+            }
+        }
+    }
+}

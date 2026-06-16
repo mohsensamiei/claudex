@@ -42,8 +42,8 @@ type FunctionCall struct {
 
 // ToolChoiceObject represents a specific tool choice.
 type ToolChoiceObject struct {
-	Type     string                 `json:"type"` // "function"
-	Function ToolChoiceFunction     `json:"function"`
+	Type     string             `json:"type"` // "function"
+	Function ToolChoiceFunction `json:"function"`
 }
 
 // ToolChoiceFunction specifies which function to use.
@@ -68,8 +68,8 @@ type ImageURL struct {
 // Content can be either a string or an array of ContentPart objects.
 type Message struct {
 	Role       string     `json:"role"`
-	Content    any        `json:"content"`               // string | []ContentPart
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`  // For assistant messages
+	Content    any        `json:"content"`                // string | []ContentPart
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`   // For assistant messages
 	ToolCallID string     `json:"tool_call_id,omitempty"` // For tool result messages
 }
 
@@ -242,10 +242,10 @@ type Delta struct {
 
 // ToolCallDelta represents incremental tool call data in streaming.
 type ToolCallDelta struct {
-	Index    int                   `json:"index"`
-	ID       string                `json:"id,omitempty"`
-	Type     string                `json:"type,omitempty"`
-	Function *FunctionCallDelta    `json:"function,omitempty"`
+	Index    int                `json:"index"`
+	ID       string             `json:"id,omitempty"`
+	Type     string             `json:"type,omitempty"`
+	Function *FunctionCallDelta `json:"function,omitempty"`
 }
 
 // FunctionCallDelta represents incremental function call data.

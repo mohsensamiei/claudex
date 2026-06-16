@@ -1,0 +1,287 @@
+basePath: /
+definitions:
+  github_com_leeaandrob_claudex_internal_models.ChatCompletionRequest:
+    properties:
+      max_tokens:
+        type: integer
+      messages:
+        items:
+          $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.Message'
+        type: array
+      model:
+        type: string
+      stream:
+        type: boolean
+      tool_choice:
+        description: string | ToolChoiceObject
+      tools:
+        items:
+          $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.Tool'
+        type: array
+    type: object
+  github_com_leeaandrob_claudex_internal_models.ChatCompletionResponse:
+    properties:
+      choices:
+        items:
+          $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.Choice'
+        type: array
+      created:
+        type: integer
+      id:
+        type: string
+      model:
+        type: string
+      object:
+        type: string
+      usage:
+        $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.Usage'
+    type: object
+  github_com_leeaandrob_claudex_internal_models.Choice:
+    properties:
+      finish_reason:
+        description: '"stop" | "tool_calls" | "length"'
+        type: string
+      index:
+        type: integer
+      message:
+        $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.Message'
+    type: object
+  github_com_leeaandrob_claudex_internal_models.ErrorDetail:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_leeaandrob_claudex_internal_models.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorDetail'
+    type: object
+  github_com_leeaandrob_claudex_internal_models.Function:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      parameters:
+        items:
+          type: integer
+        type: array
+    type: object
+  github_com_leeaandrob_claudex_internal_models.FunctionCall:
+    properties:
+      arguments:
+        description: JSON string
+        type: string
+      name:
+        type: string
+    type: object
+  github_com_leeaandrob_claudex_internal_models.Message:
+    properties:
+      content:
+        description: string | []ContentPart
+      role:
+        type: string
+      tool_call_id:
+        description: For tool result messages
+        type: string
+      tool_calls:
+        description: For assistant messages
+        items:
+          $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ToolCall'
+        type: array
+    type: object
+  github_com_leeaandrob_claudex_internal_models.Model:
+    properties:
+      created:
+        example: 1719792000
+        type: integer
+      id:
+        example: claude-sonnet-4-6
+        type: string
+      object:
+        example: model
+        type: string
+      owned_by:
+        example: anthropic
+        type: string
+    type: object
+  github_com_leeaandrob_claudex_internal_models.ModelList:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.Model'
+        type: array
+      object:
+        example: list
+        type: string
+    type: object
+  github_com_leeaandrob_claudex_internal_models.Tool:
+    properties:
+      function:
+        $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.Function'
+      type:
+        description: '"function"'
+        type: string
+    type: object
+  github_com_leeaandrob_claudex_internal_models.ToolCall:
+    properties:
+      function:
+        $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.FunctionCall'
+      id:
+        type: string
+      type:
+        description: '"function"'
+        type: string
+    type: object
+  github_com_leeaandrob_claudex_internal_models.Usage:
+    properties:
+      completion_tokens:
+        type: integer
+      prompt_tokens:
+        type: integer
+      total_tokens:
+        type: integer
+    type: object
+  internal_api_handlers.HealthResponse:
+    properties:
+      claude_cli:
+        example: true
+        type: boolean
+      status:
+        example: ok
+        type: string
+    type: object
+info:
+  contact: {}
+  description: OpenAI-compatible Chat Completions API backed by the Claude CLI, with
+    MCP tool support.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  title: Claudex API
+  version: "1.0"
+paths:
+  /healthz:
+    get:
+      description: Returns 200 when the service is healthy (Claude CLI available),
+        otherwise 503.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.HealthResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_api_handlers.HealthResponse'
+      summary: Health check
+      tags:
+      - health
+  /livez:
+    get:
+      description: Always returns 200 while the process is running.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.HealthResponse'
+      summary: Liveness probe
+      tags:
+      - health
+  /readyz:
+    get:
+      description: Returns 200 when the Claude CLI is available, otherwise 503.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.HealthResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_api_handlers.HealthResponse'
+      summary: Readiness probe
+      tags:
+      - health
+  /v1/chat/completions:
+    post:
+      consumes:
+      - application/json
+      description: Creates an OpenAI-compatible chat completion, proxied to the Claude
+        CLI. Supports streaming, tool calling, and vision.
+      parameters:
+      - description: Chat completion request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ChatCompletionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ChatCompletionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse'
+      summary: Create chat completion
+      tags:
+      - chat
+  /v1/models:
+    get:
+      description: Lists the models available through the proxy, in an OpenAI-compatible
+        format.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ModelList'
+      summary: List models
+      tags:
+      - models
+  /v1/models/{model}:
+    get:
+      description: Retrieves a single model by its ID, in an OpenAI-compatible format.
+      parameters:
+      - description: Model ID
+        in: path
+        name: model
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.Model'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_leeaandrob_claudex_internal_models.ErrorResponse'
+      summary: Retrieve a model
+      tags:
+      - models
+schemes:
+- http
+- https
+swagger: "2.0"

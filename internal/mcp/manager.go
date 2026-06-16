@@ -15,12 +15,12 @@ import (
 
 // Manager manages multiple MCP clients.
 type Manager struct {
-	clients     map[string]*Client
-	tools       []models.MCPTool
+	clients      map[string]*Client
+	tools        []models.MCPTool
 	toolToClient map[string]string // tool name -> client name
-	config      *models.MCPConfig
-	settings    models.MCPSettings
-	mu          sync.RWMutex
+	config       *models.MCPConfig
+	settings     models.MCPSettings
+	mu           sync.RWMutex
 }
 
 // NewManager creates a new MCP manager.

@@ -40,9 +40,11 @@ func TestMessageUnmarshal_ArrayContent(t *testing.T) {
 	if msg.Role != "user" {
 		t.Errorf("Expected role 'user', got '%s'", msg.Role)
 	}
+	// Array content is preserved as []ContentPart (so images survive for
+	// vision); GetTextContent joins the text parts.
 	expected := "What is in this image? Please describe it."
-	if msg.Content != expected {
-		t.Errorf("Expected content '%s', got '%s'", expected, msg.Content)
+	if got := msg.GetTextContent(); got != expected {
+		t.Errorf("Expected content '%s', got '%s'", expected, got)
 	}
 }
 
