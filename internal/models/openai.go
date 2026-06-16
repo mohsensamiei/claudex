@@ -127,7 +127,7 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 func (m Message) MarshalJSON() ([]byte, error) {
 	type Alias struct {
 		Role       string     `json:"role"`
-		Content    any        `json:"content,omitempty"`
+		Content    any        `json:"content"`
 		ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 		ToolCallID string     `json:"tool_call_id,omitempty"`
 	}

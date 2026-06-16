@@ -91,16 +91,18 @@ func (f *FunctionCallJSON) GetArgumentsString() string {
 // This is used for CLI backend responses.
 // It detects tool calls in Claude's response and properly formats them.
 func (c *Converter) ClaudeToOpenAIResponse(claudeResp *models.ClaudeJSONResponse, model string) *models.ChatCompletionResponse {
-	content := claudeResp.Result
+	var content any = claudeResp.Result
 	var toolCalls []models.ToolCall
 	finishReason := "stop"
 
 	// Try to extract tool calls from the response
-	extractedContent, extractedToolCalls := c.ExtractToolCalls(content)
+	_, extractedToolCalls := c.ExtractToolCalls(claudeResp.Result)
 	if len(extractedToolCalls) > 0 {
 		toolCalls = extractedToolCalls
-		content = extractedContent
 		finishReason = "tool_calls"
+		// OpenAI spec: when finish_reason is "tool_calls" the assistant
+		// message content is null (any accompanying prose is discarded).
+		content = nil
 	}
 
 	return &models.ChatCompletionResponse{
@@ -119,11 +121,23 @@ func (c *Converter) ClaudeToOpenAIResponse(claudeResp *models.ClaudeJSONResponse
 				FinishReason: finishReason,
 			},
 		},
-		Usage: models.Usage{
-			PromptTokens:     0,
-			CompletionTokens: 0,
-			TotalTokens:      0,
-		},
+		Usage: claudeUsageToOpenAI(claudeResp.Usage),
+	}
+}
+
+// claudeUsageToOpenAI maps the Claude CLI usage report to OpenAI's usage shape.
+// Cache tokens count as prompt (input) tokens. Returns a zero-valued Usage when
+// the CLI did not report usage.
+func claudeUsageToOpenAI(u *models.ClaudeUsage) models.Usage {
+	if u == nil {
+		return models.Usage{}
+	}
+
+	promptTokens := u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens
+	return models.Usage{
+		PromptTokens:     promptTokens,
+		CompletionTokens: u.OutputTokens,
+		TotalTokens:      promptTokens + u.OutputTokens,
 	}
 }
 

@@ -2,11 +2,20 @@ package models
 
 // ClaudeJSONResponse represents a non-streaming Claude CLI JSON output.
 type ClaudeJSONResponse struct {
-	Type       string  `json:"type"`
-	Result     string  `json:"result"`
-	SessionID  string  `json:"session_id"`
-	CostUSD    float64 `json:"cost_usd"`
-	DurationMS int     `json:"duration_ms"`
+	Type       string       `json:"type"`
+	Result     string       `json:"result"`
+	SessionID  string       `json:"session_id"`
+	CostUSD    float64      `json:"cost_usd"`
+	DurationMS int          `json:"duration_ms"`
+	Usage      *ClaudeUsage `json:"usage,omitempty"`
+}
+
+// ClaudeUsage represents the token usage reported by the Claude CLI.
+type ClaudeUsage struct {
+	InputTokens              int `json:"input_tokens"`
+	OutputTokens             int `json:"output_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 }
 
 // ClaudeStreamMessage represents a streaming Claude CLI output line (NDJSON).
