@@ -19,8 +19,8 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: http://localhost:8080
-    description: Local server
+  - url: /
+    description: Same origin as the docs (works on any host/IP/port)
 
 tags:
   - name: messages
