@@ -242,6 +242,15 @@ regardless, so health probes and metrics scraping keep working.
 
 ## Deployment
 
+> **Token refresh (read this first).** Claudex shells out to the Claude CLI,
+> which auto-refreshes the access token using the `refreshToken` and writes the
+> new token back to `~/.claude/.credentials.json`. For that to survive, the
+> `.claude` directory inside the container **must be a writable, persistent
+> volume** — a read-only mount (`:ro`) or a read-only Kubernetes secret blocks
+> the write, so the token expires after a few hours and you're forced to log in
+> again. Always mount the **directory** (not the single file), read-write, and
+> seed it once with a full credentials JSON that contains a `refreshToken`.
+
 ### Docker
 
 ```bash
@@ -249,32 +258,68 @@ regardless, so health probes and metrics scraping keep working.
 docker build -f Dockerfile.amd64 -t claudex .  # For x86_64
 docker build -f Dockerfile -t claudex .         # For ARM64
 
-# Run with credentials
+# Seed a dedicated, writable credentials dir once
+mkdir -p ~/.claudex-creds
+cp ~/.claude/.credentials.json ~/.claudex-creds/.credentials.json
+
+# Run with a writable .claude dir so the CLI can persist refreshed tokens
 docker run -p 8080:8080 \
-  -e CLAUDE_CREDENTIALS_BASE64="$(base64 -w0 ~/.claude/credentials.json)" \
+  -v ~/.claudex-creds:/home/appuser/.claude \
   claudex
 ```
 
 ### Docker Compose
 
 ```bash
-# Set credentials
-export CLAUDE_CREDENTIALS_BASE64=$(base64 -w0 ~/.claude/credentials.json)
+# Seed a dedicated, writable credentials dir once
+mkdir -p ./.claudex
+cp ~/.claude/.credentials.json ./.claudex/.credentials.json
 
-# Run
+# Run (see the volume mapping in docker-compose.yml)
 docker-compose up -d
 ```
 
 ### Kubernetes
 
-```bash
-# Create secret with credentials
-kubectl create secret generic claude-credentials \
-  --from-file=credentials.json=$HOME/.claude/credentials.json
+Kubernetes secret mounts are always read-only, so the CLI cannot refresh into
+them. Mount a **writable PVC** at `~/.claude` and seed it from the secret on
+first start via `CLAUDE_CREDENTIALS_SEED` (the entrypoint copies it only when no
+credentials exist yet, so refreshed tokens survive restarts).
 
-# Deploy
-kubectl apply -f k8s/
+```bash
+# Create secret with the full credentials JSON (must include refreshToken)
+kubectl create secret generic claude-credentials \
+  --from-file=.credentials.json=$HOME/.claude/.credentials.json
 ```
+
+```yaml
+# Pod/Deployment spec excerpt
+spec:
+  containers:
+    - name: claudex
+      image: claudex
+      env:
+        - name: CLAUDE_CREDENTIALS_SEED
+          value: /secrets/.credentials.json
+      volumeMounts:
+        - name: claude-home          # writable, persistent
+          mountPath: /home/appuser/.claude
+        - name: claude-secret        # read-only seed source
+          mountPath: /secrets
+          readOnly: true
+  volumes:
+    - name: claude-home
+      persistentVolumeClaim:
+        claimName: claudex-claude-home
+    - name: claude-secret
+      secret:
+        secretName: claude-credentials
+```
+
+> If the PVC is lost (or you use an `emptyDir`), the pod re-seeds from the secret
+> on restart — which only works while that secret's token still has a valid
+> `refreshToken`. A PVC is recommended so the long-lived refreshed credentials
+> persist across restarts.
 
 ## Development
 

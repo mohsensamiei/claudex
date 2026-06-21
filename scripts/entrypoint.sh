@@ -16,16 +16,39 @@ if [ ! -f "${MCP_FILE}" ]; then
     echo '{"mcpServers":{}}' > "${MCP_FILE}" 2>/dev/null || true
 fi
 
-# If CLAUDE_CODE_OAUTH_TOKEN is set, create credentials file from it
-if [ -n "${CLAUDE_CODE_OAUTH_TOKEN}" ]; then
-    echo "Using CLAUDE_CODE_OAUTH_TOKEN environment variable"
+# Credential bootstrap.
+#
+# IMPORTANT: the Claude CLI auto-refreshes the access token via the refreshToken
+# and writes the new token back to ${CREDENTIALS_FILE}. For that to keep working
+# across restarts, ${CLAUDE_DIR} must be a WRITABLE, PERSISTENT volume (a Docker
+# bind mount / named volume, or a K8s PVC) — NOT a read-only secret mount or a
+# read-only single-file bind mount.
+#
+# Sources (env var, or a read-only seed path such as a K8s secret) are only used
+# to SEED the credentials when none exist yet in the writable volume. We never
+# overwrite an existing file, otherwise every restart would clobber the freshly
+# refreshed token with the stale bootstrap value and force a re-login. Set
+# CLAUDE_CREDENTIALS_FORCE=1 to re-seed from source anyway.
+
+if [ -f "${CREDENTIALS_FILE}" ] && [ "${CLAUDE_CREDENTIALS_FORCE}" != "1" ]; then
+    echo "Existing credentials found at ${CREDENTIALS_FILE}; keeping refreshed token"
+# Seed from a read-only file path (e.g. a K8s secret mounted at this location).
+elif [ -n "${CLAUDE_CREDENTIALS_SEED}" ] && [ -f "${CLAUDE_CREDENTIALS_SEED}" ]; then
+    echo "Seeding credentials from ${CLAUDE_CREDENTIALS_SEED}"
+    cp "${CLAUDE_CREDENTIALS_SEED}" "${CREDENTIALS_FILE}"
+    chmod 600 "${CREDENTIALS_FILE}"
+# Seed from the CLAUDE_CODE_OAUTH_TOKEN environment variable.
+elif [ -n "${CLAUDE_CODE_OAUTH_TOKEN}" ]; then
+    echo "Seeding credentials from CLAUDE_CODE_OAUTH_TOKEN environment variable"
 
     # Extract components from the token if it's a full JSON
     if echo "${CLAUDE_CODE_OAUTH_TOKEN}" | grep -q "accessToken"; then
         # Full JSON provided
         echo "${CLAUDE_CODE_OAUTH_TOKEN}" > "${CREDENTIALS_FILE}"
     else
-        # Just the access token provided, create minimal credentials
+        # Just the access token provided, create minimal credentials.
+        # NOTE: a bare access token has no refreshToken, so the CLI CANNOT
+        # auto-refresh it — provide the full credentials JSON for persistence.
         # Expiry set to 1 year from now (in milliseconds)
         EXPIRY=$(( $(date +%s) * 1000 + 31536000000 ))
         cat > "${CREDENTIALS_FILE}" << EOF

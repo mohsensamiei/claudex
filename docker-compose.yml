@@ -12,8 +12,13 @@ services:
       # Optional: when set, /v1/* routes require "Authorization: Bearer <key>".
       - CLAUDEX_API_KEY=${CLAUDEX_API_KEY:-}
     volumes:
-      # Only mount credentials file to avoid MCP config issues
-      - ~/.claude/.credentials.json:/home/appuser/.claude/.credentials.json:ro
+      # Mount the .claude DIRECTORY read-write (not the single file, read-only).
+      # The Claude CLI auto-refreshes the access token via the refreshToken and
+      # must be able to persist the new token back to .credentials.json — a :ro
+      # single-file mount blocks that, so the token dies after a few hours and
+      # forces a re-login. A dedicated dir keeps the host's ~/.claude/.mcp.json
+      # out of the container; entrypoint.sh seeds a minimal .mcp.json if absent.
+      - ./.claudex:/home/appuser/.claude
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/livez"]
