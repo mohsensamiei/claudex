@@ -1,7 +1,7 @@
 """
 E2E Tests for Health Check Endpoints.
 
-Tests liveness, readiness, and metrics endpoints.
+Tests the health check and metrics endpoints.
 """
 
 import pytest
@@ -11,15 +11,9 @@ import requests
 class TestHealthEndpoints:
     """Test health check endpoints."""
 
-    def test_livez_returns_200(self, base_url: str):
-        """Test that /livez returns 200 OK."""
-        response = requests.get(f"{base_url}/livez", timeout=10)
-
-        assert response.status_code == 200
-
-    def test_readyz_returns_200(self, base_url: str):
-        """Test that /readyz returns 200 OK when Claude CLI is available."""
-        response = requests.get(f"{base_url}/readyz", timeout=10)
+    def test_healthz_returns_200(self, base_url: str):
+        """Test that /healthz returns 200 OK when Claude CLI is available."""
+        response = requests.get(f"{base_url}/healthz", timeout=10)
 
         assert response.status_code == 200
 

@@ -22,23 +22,9 @@ func NewHealthHandler(executor *claude.Executor) *HealthHandler {
 	return &HealthHandler{executor: executor}
 }
 
-// Livez reports whether the process is alive.
-func (h *HealthHandler) Livez(c *fiber.Ctx) error {
-	return c.JSON(HealthResponse{Status: "ok", ClaudeCLI: h.executor.IsAvailable()})
-}
-
-// Readyz reports whether the service is ready to serve traffic.
-func (h *HealthHandler) Readyz(c *fiber.Ctx) error {
-	return h.respond(c)
-}
-
-// Healthz reports the overall health of the service.
+// Healthz reports the overall health of the service: 200 when the Claude CLI is
+// available, otherwise 503.
 func (h *HealthHandler) Healthz(c *fiber.Ctx) error {
-	return h.respond(c)
-}
-
-// respond returns a health payload based on Claude CLI availability.
-func (h *HealthHandler) respond(c *fiber.Ctx) error {
 	if !h.executor.IsAvailable() {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(HealthResponse{
 			Status:    "unavailable",

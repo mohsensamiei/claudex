@@ -26,8 +26,6 @@ func RegisterRoutes(app *fiber.App, logger *observability.Logger, metrics *obser
 	// they short-circuit before the tracing/logging middleware below and don't
 	// pollute traces, logs, or request metrics with probe traffic.
 	health := handlers.NewHealthHandler(executor)
-	app.Get("/livez", health.Livez)
-	app.Get("/readyz", health.Readyz)
 	app.Get("/healthz", health.Healthz)
 
 	// Prometheus metrics endpoint

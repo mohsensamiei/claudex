@@ -107,6 +107,7 @@ paths:
       description: Lists the names of the models available through the proxy.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       responses:
         "200":
           description: The catalog of available model names.
@@ -116,38 +117,6 @@ paths:
                 type: array
                 items:
                   type: string
-
-  /livez:
-    get:
-      tags: [health]
-      summary: Liveness probe
-      description: Always returns 200 while the process is running.
-      responses:
-        "200":
-          description: Process is alive.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HealthResponse"
-
-  /readyz:
-    get:
-      tags: [health]
-      summary: Readiness probe
-      description: Returns 200 when the Claude CLI is available, otherwise 503.
-      responses:
-        "200":
-          description: Ready.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HealthResponse"
-        "503":
-          description: Not ready (Claude CLI unavailable).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HealthResponse"
 
   /healthz:
     get:

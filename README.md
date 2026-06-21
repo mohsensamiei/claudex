@@ -228,9 +228,7 @@ once the server is running. The raw OpenAPI 3 spec (hand-maintained in
 | `/v1/messages` | POST | **Anthropic-native** Messages API: Claude-format request in, Claude-format response out (streaming, tool use, vision). Auth: `x-api-key` |
 | `/v1/chat/completions` | POST | OpenAI-compatible chat completions. Auth: `Authorization: Bearer` |
 | `/v1/models` | GET | List available model names |
-| `/livez` | GET | Liveness probe |
-| `/readyz` | GET | Readiness probe (200 when Claude CLI is available, else 503) |
-| `/healthz` | GET | Health check (200 when healthy, else 503) |
+| `/healthz` | GET | Health check (200 when Claude CLI is available, else 503) |
 | `/metrics` | GET | Prometheus metrics |
 | `/swagger/index.html` | GET | Interactive Swagger UI |
 
@@ -259,7 +257,7 @@ curl http://localhost:8080/v1/messages \
 ```
 
 Requests without a valid key receive `401 Unauthorized`. The operational
-endpoints (`/livez`, `/readyz`, `/healthz`, `/metrics`, `/swagger/*`) stay open
+endpoints (`/healthz`, `/metrics`, `/swagger/*`) stay open
 regardless, so health probes and metrics scraping keep working.
 
 ### Compatibility Matrix
