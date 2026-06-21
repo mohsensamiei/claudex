@@ -1,0 +1,478 @@
+openapi: 3.0.3
+info:
+  title: Claudex API
+  version: "1.0"
+  description: >-
+    Claude CLI proxy exposing two request/response surfaces:
+    a native Anthropic Messages API (`POST /v1/messages`) and an
+    OpenAI-compatible Chat Completions API (`POST /v1/chat/completions`),
+    with MCP tool support.
+
+
+    Authentication is optional and disabled unless the server is started with
+    `CLAUDEX_API_KEY` set. When enabled, the Anthropic surface authenticates
+    with `x-api-key` (the Anthropic convention) and the OpenAI surface with
+    `Authorization: Bearer <key>` (the OpenAI convention). The proxy accepts
+    either header on any `/v1` route.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local server
+
+tags:
+  - name: messages
+    description: Native Anthropic Messages API
+  - name: chat
+    description: OpenAI-compatible Chat Completions API
+  - name: models
+    description: Model catalog
+  - name: health
+    description: Operational probes
+
+paths:
+  /v1/messages:
+    post:
+      tags: [messages]
+      summary: Create a message (Anthropic-native)
+      description: >-
+        Creates a message using the native Anthropic Messages API format
+        (Claude request in, Claude response out), proxied to the Claude CLI.
+        Supports streaming, tool use, and vision.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnthropicRequest"
+      responses:
+        "200":
+          description: "A message response (or, with `stream: true`, an SSE event stream)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicResponse"
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-Sent Events in the Anthropic streaming format.
+        "400":
+          $ref: "#/components/responses/AnthropicError"
+        "401":
+          $ref: "#/components/responses/AnthropicError"
+        "500":
+          $ref: "#/components/responses/AnthropicError"
+
+  /v1/chat/completions:
+    post:
+      tags: [chat]
+      summary: Create chat completion (OpenAI-compatible)
+      description: >-
+        Creates an OpenAI-compatible chat completion, proxied to the Claude CLI.
+        Supports streaming, tool calling, and vision.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatCompletionRequest"
+      responses:
+        "200":
+          description: "A chat completion (or, with `stream: true`, an SSE event stream)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatCompletionResponse"
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-Sent Events in the OpenAI streaming format.
+        "400":
+          $ref: "#/components/responses/OpenAIError"
+        "401":
+          $ref: "#/components/responses/OpenAIError"
+        "500":
+          $ref: "#/components/responses/OpenAIError"
+
+  /v1/models:
+    get:
+      tags: [models]
+      summary: List models
+      description: Lists the names of the models available through the proxy.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: The catalog of available model names.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /livez:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      description: Always returns 200 while the process is running.
+      responses:
+        "200":
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /readyz:
+    get:
+      tags: [health]
+      summary: Readiness probe
+      description: Returns 200 when the Claude CLI is available, otherwise 503.
+      responses:
+        "200":
+          description: Ready.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Not ready (Claude CLI unavailable).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /healthz:
+    get:
+      tags: [health]
+      summary: Health check
+      description: Returns 200 when the service is healthy (Claude CLI available), otherwise 503.
+      responses:
+        "200":
+          description: Healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Unhealthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        OpenAI-style authentication. Send `Authorization: Bearer <key>`.
+        Required only when the server is started with `CLAUDEX_API_KEY` set.
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: >-
+        Anthropic-style authentication. Send `x-api-key: <key>`.
+        Required only when the server is started with `CLAUDEX_API_KEY` set.
+
+  responses:
+    AnthropicError:
+      description: Error in the Anthropic error format.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AnthropicErrorResponse"
+    OpenAIError:
+      description: Error in the OpenAI error format.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    # --- Anthropic (native) -------------------------------------------------
+    AnthropicRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+          example: claude-sonnet
+        max_tokens:
+          type: integer
+          example: 1024
+        system:
+          description: System prompt. A string, or an array of text content blocks.
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                $ref: "#/components/schemas/AnthropicContentBlock"
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnthropicMessage"
+        tools:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnthropicTool"
+        tool_choice:
+          type: object
+          description: '{ "type": "auto" | "any" | "tool" | "none", "name"?: string }'
+        stream:
+          type: boolean
+    AnthropicMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          description: A string, or an array of content blocks.
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                $ref: "#/components/schemas/AnthropicContentBlock"
+    AnthropicContentBlock:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [text, image, tool_use, tool_result]
+        text:
+          type: string
+        source:
+          $ref: "#/components/schemas/AnthropicImageSource"
+        id:
+          type: string
+        name:
+          type: string
+        input:
+          type: object
+        tool_use_id:
+          type: string
+        is_error:
+          type: boolean
+    AnthropicImageSource:
+      type: object
+      properties:
+        type:
+          type: string
+          example: base64
+        media_type:
+          type: string
+          example: image/png
+        data:
+          type: string
+          description: Base64-encoded image bytes.
+    AnthropicTool:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        input_schema:
+          type: object
+          description: JSON Schema for the tool input.
+    AnthropicResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: msg_0123456789
+        type:
+          type: string
+          example: message
+        role:
+          type: string
+          example: assistant
+        model:
+          type: string
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnthropicContentBlock"
+        stop_reason:
+          type: string
+          enum: [end_turn, tool_use, max_tokens]
+        stop_sequence:
+          type: string
+          nullable: true
+        usage:
+          $ref: "#/components/schemas/AnthropicUsage"
+    AnthropicUsage:
+      type: object
+      properties:
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        cache_read_input_tokens:
+          type: integer
+        cache_creation_input_tokens:
+          type: integer
+    AnthropicErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+          example: error
+        error:
+          type: object
+          properties:
+            type:
+              type: string
+              example: invalid_request_error
+            message:
+              type: string
+
+    # --- OpenAI-compatible --------------------------------------------------
+    ChatCompletionRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+          example: claude-sonnet
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+        stream:
+          type: boolean
+        max_tokens:
+          type: integer
+        tools:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tool"
+        tool_choice:
+          description: '"auto" | "none" | "required" | { "type": "function", "function": { "name": string } }'
+    ChatMessage:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant, tool]
+        content:
+          description: A string, or an array of content parts (text / image_url).
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+        tool_calls:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolCall"
+        tool_call_id:
+          type: string
+    Tool:
+      type: object
+      properties:
+        type:
+          type: string
+          example: function
+        function:
+          type: object
+          properties:
+            name:
+              type: string
+            description:
+              type: string
+            parameters:
+              type: object
+    ToolCall:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          example: function
+        function:
+          type: object
+          properties:
+            name:
+              type: string
+            arguments:
+              type: string
+              description: JSON-encoded arguments string.
+    ChatCompletionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: chatcmpl-0123456789
+        object:
+          type: string
+          example: chat.completion
+        created:
+          type: integer
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              message:
+                $ref: "#/components/schemas/ChatMessage"
+              finish_reason:
+                type: string
+                enum: [stop, tool_calls, length]
+        usage:
+          $ref: "#/components/schemas/Usage"
+    Usage:
+      type: object
+      properties:
+        prompt_tokens:
+          type: integer
+        completion_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        prompt_tokens_details:
+          type: object
+          properties:
+            cached_tokens:
+              type: integer
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            type:
+              type: string
+            code:
+              type: string
+
+    # --- Operational --------------------------------------------------------
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        claude_cli:
+          type: boolean
+          example: true

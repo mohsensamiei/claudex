@@ -23,39 +23,16 @@ func NewHealthHandler(executor *claude.Executor) *HealthHandler {
 }
 
 // Livez reports whether the process is alive.
-//
-//	@Summary		Liveness probe
-//	@Description	Always returns 200 while the process is running.
-//	@Tags			health
-//	@Produce		json
-//	@Success		200	{object}	HealthResponse
-//	@Router			/livez [get]
 func (h *HealthHandler) Livez(c *fiber.Ctx) error {
 	return c.JSON(HealthResponse{Status: "ok", ClaudeCLI: h.executor.IsAvailable()})
 }
 
 // Readyz reports whether the service is ready to serve traffic.
-//
-//	@Summary		Readiness probe
-//	@Description	Returns 200 when the Claude CLI is available, otherwise 503.
-//	@Tags			health
-//	@Produce		json
-//	@Success		200	{object}	HealthResponse
-//	@Failure		503	{object}	HealthResponse
-//	@Router			/readyz [get]
 func (h *HealthHandler) Readyz(c *fiber.Ctx) error {
 	return h.respond(c)
 }
 
 // Healthz reports the overall health of the service.
-//
-//	@Summary		Health check
-//	@Description	Returns 200 when the service is healthy (Claude CLI available), otherwise 503.
-//	@Tags			health
-//	@Produce		json
-//	@Success		200	{object}	HealthResponse
-//	@Failure		503	{object}	HealthResponse
-//	@Router			/healthz [get]
 func (h *HealthHandler) Healthz(c *fiber.Ctx) error {
 	return h.respond(c)
 }

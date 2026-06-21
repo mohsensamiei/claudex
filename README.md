@@ -140,6 +140,45 @@ response = client.chat.completions.create(
 )
 ```
 
+## Anthropic-Native API
+
+Claudex also exposes a native [Anthropic Messages API](https://docs.anthropic.com/en/api/messages)
+endpoint at `POST /v1/messages`. It accepts requests in Claude format and responds
+in Claude format, so the official Anthropic SDKs work by pointing them at Claudex:
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic(base_url="http://localhost:8080", api_key="not-needed")
+
+message = client.messages.create(
+    model="claude-sonnet",
+    max_tokens=1024,
+    system="You are a helpful assistant.",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(message.content[0].text)
+```
+
+```bash
+curl http://localhost:8080/v1/messages \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+Streaming (`"stream": true`), tool use (`tools` / `tool_use` / `tool_result`
+blocks), and vision (base64 `image` blocks) are all supported in the native
+format. The OpenAI-compatible surface remains available at
+`/v1/chat/completions`.
+
+When authentication is enabled, this endpoint follows the Anthropic convention
+and authenticates with the `x-api-key` header (the OpenAI endpoints use
+`Authorization: Bearer`). The proxy accepts either header on any `/v1` route.
+
 ## MCP Server Integration
 
 Claudex supports [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers, allowing you to extend capabilities with external tools.
@@ -179,13 +218,15 @@ MCP tools are automatically available in chat completions when configured.
 
 Interactive API documentation is available via Swagger UI at
 [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
-once the server is running. The raw OpenAPI spec is served at `/swagger/doc.json`.
+once the server is running. The raw OpenAPI 3 spec (hand-maintained in
+`docs/openapi.yaml`) is served at `/openapi.yaml`.
 
 ### Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/v1/chat/completions` | POST | OpenAI-compatible chat completions |
+| `/v1/messages` | POST | **Anthropic-native** Messages API: Claude-format request in, Claude-format response out (streaming, tool use, vision). Auth: `x-api-key` |
+| `/v1/chat/completions` | POST | OpenAI-compatible chat completions. Auth: `Authorization: Bearer` |
 | `/v1/models` | GET | List available model names |
 | `/livez` | GET | Liveness probe |
 | `/readyz` | GET | Readiness probe (200 when Claude CLI is available, else 503) |
@@ -196,18 +237,25 @@ once the server is running. The raw OpenAPI spec is served at `/swagger/doc.json
 ### Authentication
 
 By default the API is open. Set the `CLAUDEX_API_KEY` environment variable to
-require a bearer token on the `/v1/*` routes:
+require an API key on the `/v1/*` routes:
 
 ```bash
 CLAUDEX_API_KEY=my-secret-key ./claudex
 ```
 
-Clients then pass the key as a bearer token (works with any OpenAI SDK via the
-`api_key` field):
+The key may be presented with either convention, so OpenAI- and Anthropic-format
+clients both work unchanged:
 
 ```bash
+# OpenAI convention (works with any OpenAI SDK via the api_key field)
 curl http://localhost:8080/v1/models \
   -H "Authorization: Bearer my-secret-key"
+
+# Anthropic convention (works with the Anthropic SDKs)
+curl http://localhost:8080/v1/messages \
+  -H "x-api-key: my-secret-key" \
+  -H "content-type: application/json" \
+  -d '{"model":"claude-sonnet","max_tokens":256,"messages":[{"role":"user","content":"Hi"}]}'
 ```
 
 Requests without a valid key receive `401 Unauthorized`. The operational
@@ -233,7 +281,7 @@ regardless, so health probes and metrics scraping keep working.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8080` | Server port |
-| `CLAUDEX_API_KEY` | - | When set, requires `Authorization: Bearer <key>` on `/v1/*` routes. Unset = open access (default) |
+| `CLAUDEX_API_KEY` | - | When set, requires an API key on `/v1/*` routes via `Authorization: Bearer <key>` or `x-api-key: <key>`. Unset = open access (default) |
 | `LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 | `REQUEST_TIMEOUT` | `600` | Request timeout in seconds |
 | `CLAUDEX_MCP_CONFIG_PATH` | - | Path to MCP configuration file |

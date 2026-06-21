@@ -9,7 +9,7 @@ services:
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      # Optional: when set, /v1/* routes require "Authorization: Bearer <key>".
+      # Optional: when set, /v1/* routes require an API key ("Authorization: Bearer <key>" or "x-api-key: <key>").
       - CLAUDEX_API_KEY=${CLAUDEX_API_KEY:-}
     volumes:
       # Mount the .claude DIRECTORY read-write (not the single file, read-only).

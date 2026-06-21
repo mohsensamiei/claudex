@@ -16,15 +16,7 @@ var supportedModels = []string{
 	"claude-haiku",
 }
 
-// ListModels returns the catalog of available model names.
-//
-//	@Summary		List models
-//	@Description	Lists the names of the models available through the proxy.
-//	@Tags			models
-//	@Produce		json
-//	@Success		200	{array}	string
-//	@Security		BearerAuth
-//	@Router			/v1/models [get]
+// ListModels returns the catalog of available model names (GET /v1/models).
 func ListModels(c *fiber.Ctx) error {
 	return c.JSON(supportedModels)
 }

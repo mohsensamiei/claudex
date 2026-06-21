@@ -57,20 +57,8 @@ func NewChatCompletionsHandler(
 	}
 }
 
-// Handle processes chat completion requests.
-//
-//	@Summary		Create chat completion
-//	@Description	Creates an OpenAI-compatible chat completion, proxied to the Claude CLI. Supports streaming, tool calling, and vision.
-//	@Tags			chat
-//	@Accept			json
-//	@Produce		json
-//	@Param			request	body		models.ChatCompletionRequest	true	"Chat completion request"
-//	@Success		200		{object}	models.ChatCompletionResponse
-//	@Failure		400		{object}	models.ErrorResponse
-//	@Failure		401		{object}	models.ErrorResponse
-//	@Failure		500		{object}	models.ErrorResponse
-//	@Security		BearerAuth
-//	@Router			/v1/chat/completions [post]
+// Handle processes OpenAI-compatible chat completion requests (POST
+// /v1/chat/completions). See docs/openapi.yaml for the documented contract.
 func (h *ChatCompletionsHandler) Handle(c *fiber.Ctx) error {
 	start := time.Now()
 	h.metrics.IncrementActive()
@@ -163,6 +151,31 @@ func (h *ChatCompletionsHandler) handleNonStreamingCLI(c *fiber.Ctx, req *models
 	h.metrics.RecordRequest("success", false, time.Since(start).Seconds())
 
 	return c.JSON(openaiResp)
+}
+
+// generateOpenAIResponse runs the full non-streaming Claude CLI pipeline for a
+// request and returns the resolved OpenAI-shaped response: execute, parse,
+// convert, then server-side MCP tool execution. It is shared by the OpenAI
+// chat-completions handler and the native Anthropic messages handler. Metrics
+// and HTTP error shaping remain the caller's responsibility.
+func (h *ChatCompletionsHandler) generateOpenAIResponse(ctx context.Context, req *models.ChatCompletionRequest) (*models.ChatCompletionResponse, error) {
+	output, err := h.executor.ExecuteWithMessages(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute Claude: %w", err)
+	}
+
+	claudeResp, err := h.parser.ParseJSONResponse(output)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Claude response: %w", err)
+	}
+
+	openaiResp := h.converter.ClaudeToOpenAIResponse(claudeResp, req.Model)
+
+	if len(openaiResp.Choices) > 0 && len(openaiResp.Choices[0].Message.ToolCalls) > 0 && h.mcpManager != nil {
+		openaiResp = h.executeMCPToolCalls(ctx, openaiResp, req)
+	}
+
+	return openaiResp, nil
 }
 
 // executeMCPToolCalls executes tool calls via MCP and returns the results.

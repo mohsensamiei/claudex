@@ -32,6 +32,20 @@ func doGet(t *testing.T, app *fiber.App, authHeader string) (int, string) {
 	return resp.StatusCode, string(body)
 }
 
+func doGetWithHeader(t *testing.T, app *fiber.App, header, value string) int {
+	t.Helper()
+	req := httptest.NewRequest("GET", "/v1/ping", nil)
+	if value != "" {
+		req.Header.Set(header, value)
+	}
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test failed: %v", err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode
+}
+
 func TestAPIKeyAuth_DisabledWhenEmpty(t *testing.T) {
 	app := newAuthApp("")
 	status, body := doGet(t, app, "")
@@ -72,5 +86,19 @@ func TestAPIKeyAuth_MalformedHeader(t *testing.T) {
 	status, _ := doGet(t, app, "secret")
 	if status != fiber.StatusUnauthorized {
 		t.Fatalf("expected 401 with malformed header, got %d", status)
+	}
+}
+
+func TestAPIKeyAuth_ValidApiKeyHeader(t *testing.T) {
+	app := newAuthApp("secret")
+	if status := doGetWithHeader(t, app, "x-api-key", "secret"); status != fiber.StatusOK {
+		t.Fatalf("expected 200 with valid x-api-key, got %d", status)
+	}
+}
+
+func TestAPIKeyAuth_WrongApiKeyHeader(t *testing.T) {
+	app := newAuthApp("secret")
+	if status := doGetWithHeader(t, app, "x-api-key", "wrong"); status != fiber.StatusUnauthorized {
+		t.Fatalf("expected 401 with wrong x-api-key, got %d", status)
 	}
 }

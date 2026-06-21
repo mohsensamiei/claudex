@@ -17,18 +17,9 @@ import (
 	"github.com/leeaandrob/claudex/internal/observability"
 )
 
-//	@title			Claudex API
-//	@version		1.0
-//	@description	OpenAI-compatible Chat Completions API backed by the Claude CLI, with MCP tool support.
-//	@license.name	MIT
-//	@license.url	https://opensource.org/licenses/MIT
-//	@BasePath		/
-//	@schemes		http https
-
-//	@securityDefinitions.apikey	BearerAuth
-//	@in							header
-//	@name						Authorization
-//	@description				Optional bearer token. Required only when the server is started with CLAUDEX_API_KEY set. Format: "Bearer <key>".
+// The HTTP contract is described by the hand-maintained OpenAPI 3 document in
+// docs/openapi.yaml, served at /openapi.yaml and rendered by the Swagger UI at
+// /swagger/.
 
 func main() {
 	// Configuration from environment
