@@ -10,14 +10,64 @@ import (
 	"strings"
 
 	"github.com/leeaandrob/claudex/internal/models"
+	"github.com/leeaandrob/claudex/internal/observability"
 )
 
 // Executor handles Claude CLI execution.
-type Executor struct{}
+type Executor struct {
+	creds  *CredentialManager
+	logger *observability.Logger
+}
 
-// NewExecutor creates a new Claude CLI executor.
+// NewExecutor creates a new Claude CLI executor. It also wires up a credential
+// manager so subscription (claude.ai) OAuth tokens are refreshed before each
+// CLI invocation; this is a no-op when no .credentials.json is present (e.g.
+// when authenticating via an API key).
 func NewExecutor() *Executor {
-	return &Executor{}
+	logger := observability.NewLogger(envOr("LOG_LEVEL", "info"))
+	return &Executor{
+		creds:  NewCredentialManager(logger),
+		logger: logger,
+	}
+}
+
+// ensureFreshAuth proactively refreshes the OAuth access token when it is at or
+// near expiry. Failures are non-fatal: the CLI may still hold valid auth, and
+// surfacing a hard error here would break requests that don't need a refresh.
+func (e *Executor) ensureFreshAuth(ctx context.Context) {
+	if e.creds == nil {
+		return
+	}
+	if err := e.creds.EnsureFresh(ctx); err != nil {
+		e.logger.Warn("proactive credential refresh failed", "error", err.Error())
+	}
+}
+
+// runWithAuthRetry refreshes auth, runs fn, and—if fn fails with an auth error
+// (a stale access token the proactive refresh missed)—force-refreshes once and
+// retries.
+func (e *Executor) runWithAuthRetry(ctx context.Context, fn func() (string, error)) (string, error) {
+	e.ensureFreshAuth(ctx)
+	out, err := fn()
+	if err != nil && e.creds != nil && isAuthError(err.Error()) {
+		e.logger.Warn("claude CLI returned an auth error; forcing credential refresh and retrying once",
+			"error", err.Error())
+		if rerr := e.creds.ForceRefresh(ctx); rerr != nil {
+			e.logger.Error("forced credential refresh failed", "error", rerr.Error())
+			return out, err
+		}
+		e.logger.Debug("retrying claude CLI after forced refresh")
+		return fn()
+	}
+	return out, err
+}
+
+// isAuthError reports whether a Claude CLI error string indicates an
+// authentication failure that a token refresh might fix.
+func isAuthError(s string) bool {
+	return strings.Contains(s, `"api_error_status":401`) ||
+		strings.Contains(s, "Invalid authentication") ||
+		strings.Contains(s, "authentication_error")
 }
 
 // resolveModelFlag maps an OpenAI-style model identifier from the request to a
@@ -87,7 +137,9 @@ func (e *Executor) ExecuteWithMessages(ctx context.Context, req *models.ChatComp
 	systemPrompt := e.buildSystemPromptWithTools(req)
 
 	if e.useStreamJSON(req.Messages) {
-		return e.executeWithStreamJSON(ctx, req.Messages, systemPrompt, req.Model, req.Stream)
+		return e.runWithAuthRetry(ctx, func() (string, error) {
+			return e.executeWithStreamJSON(ctx, req.Messages, systemPrompt, req.Model, req.Stream)
+		})
 	}
 
 	// Simple text mode
@@ -97,7 +149,9 @@ func (e *Executor) ExecuteWithMessages(ctx context.Context, req *models.ChatComp
 		// This method is for non-streaming only
 		return "", fmt.Errorf("use ExecuteStreamingWithMessages for streaming")
 	}
-	return e.ExecuteNonStreaming(ctx, prompt, systemPrompt, req.Model)
+	return e.runWithAuthRetry(ctx, func() (string, error) {
+		return e.ExecuteNonStreaming(ctx, prompt, systemPrompt, req.Model)
+	})
 }
 
 // useStreamJSON reports whether the request must use the stream-json input
@@ -122,6 +176,10 @@ func (e *Executor) messagesHaveComplexContent(messages []models.Message) bool {
 
 // ExecuteStreamingWithMessages executes Claude CLI with streaming and OpenAI-style messages.
 func (e *Executor) ExecuteStreamingWithMessages(ctx context.Context, req *models.ChatCompletionRequest) (<-chan string, <-chan error, error) {
+	// Refresh OAuth credentials before streaming; the streaming path surfaces
+	// errors over a channel, so we rely on proactive refresh rather than retry.
+	e.ensureFreshAuth(ctx)
+
 	// Build system prompt with tools if present
 	systemPrompt := e.buildSystemPromptWithTools(req)
 

@@ -285,6 +285,29 @@ regardless, so health probes and metrics scraping keep working.
 | `CLAUDEX_MCP_CONFIG_PATH` | - | Path to MCP configuration file |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | - | OpenTelemetry endpoint |
 | `SERVICE_NAME` | `claudex` | Service name for tracing |
+| `CLAUDEX_CREDENTIALS_PATH` | `~/.claude/.credentials.json` | Path to the Claude OAuth credentials file kept fresh by the auto-refresher |
+| `CLAUDEX_OAUTH_TOKEN_URL` | `https://platform.claude.com/v1/oauth/token` | OAuth token endpoint used to refresh the access token |
+| `CLAUDEX_OAUTH_CLIENT_ID` | Claude CLI client ID | OAuth client ID used for refresh |
+| `CLAUDEX_OAUTH_USER_AGENT` | `claude-cli/1.0 (external, cli)` | User-Agent sent on refresh requests (override if a WAF blocks the default) |
+
+### Token auto-refresh
+
+Claudex authenticates by shelling out to the Claude CLI, which reads
+`~/.claude/.credentials.json`. Subscription (claude.ai) OAuth access tokens
+expire after ~8 hours, and the CLI does not reliably refresh them in a headless
+container — so requests start failing with `401 Invalid authentication
+credentials`.
+
+To fix this, Claudex refreshes the credentials itself: before each request it
+checks the token's expiry and, when it is within 5 minutes of expiring (or a
+request still hits a 401), it exchanges the stored `refreshToken` for a new
+access token and writes the rotated credentials back to the file. This requires
+the credentials file to be **writable** (see the volume mount in
+`docker-compose.yml`) and to contain a `refreshToken`.
+
+> Note: OAuth refresh tokens rotate — each refresh invalidates the previous one.
+> Don't share one credentials file between Claudex and an interactive Claude
+> session on another machine, or they will keep invalidating each other.
 
 ## Deployment
 
