@@ -181,6 +181,46 @@ func TestForceRefresh_AlwaysRefreshes(t *testing.T) {
 	}
 }
 
+func TestEnsureFresh_NotWritableSkipsRefresh(t *testing.T) {
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		_ = json.NewEncoder(w).Encode(oauthTokenResponse{AccessToken: "new", RefreshToken: "rotated", ExpiresIn: 28800})
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".credentials.json")
+	data, _ := json.Marshal(map[string]any{"claudeAiOauth": map[string]any{
+		"accessToken":  "old-access",
+		"refreshToken": "old-refresh",
+		"expiresAt":    time.Now().Add(-time.Minute).UnixMilli(),
+	}})
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	// Make the directory read-only so probe/temp creation fails.
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	m := newTestManager(t, path, srv.URL)
+	err := m.EnsureFresh(context.Background())
+	if err == nil {
+		t.Fatal("expected an error when the directory is not writable")
+	}
+	// Critically: the refresh endpoint must NOT have been called, so the
+	// existing refresh token is preserved (not rotated and lost).
+	if got := atomic.LoadInt32(&calls); got != 0 {
+		t.Fatalf("expected no refresh call when unable to persist, got %d", got)
+	}
+	_ = os.Chmod(dir, 0o700)
+	if creds := readCreds(t, path); creds.RefreshToken != "old-refresh" {
+		t.Fatalf("refresh token must be preserved, got %q", creds.RefreshToken)
+	}
+}
+
 func TestIsAuthError(t *testing.T) {
 	cases := map[string]bool{
 		`claude cli error: exit status 1: {"api_error_status":401}`: true,

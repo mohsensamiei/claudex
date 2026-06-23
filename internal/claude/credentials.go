@@ -145,6 +145,17 @@ func (m *CredentialManager) refreshIfNeeded(ctx context.Context, force bool) err
 		return nil // still valid
 	}
 
+	// A successful refresh rotates the refresh token server-side and
+	// invalidates the old one. If we cannot persist the new token we must NOT
+	// refresh at all, otherwise the rotated token is lost and the credential is
+	// permanently locked out (every later refresh returns invalid_grant).
+	if err := m.ensureWritable(); err != nil {
+		m.logger.Error("skipping OAuth refresh: credentials not persistable, would discard the rotated refresh token and lock out the account",
+			"error", err.Error(),
+			"hint", "make the credentials directory writable by the container user (uid of appuser)")
+		return err
+	}
+
 	m.logger.Info("refreshing OAuth access token",
 		"reason", refreshReason(force, creds),
 		"expires_at", expiry.Format(time.RFC3339),
@@ -254,6 +265,21 @@ func (m *CredentialManager) requestRefresh(ctx context.Context, refreshToken str
 		return nil, fmt.Errorf("oauth refresh response missing access_token")
 	}
 	return &tok, nil
+}
+
+// ensureWritable verifies that a new file can be created in the credentials
+// directory by creating and removing a probe file. This is checked before a
+// refresh so we never rotate a refresh token we cannot persist.
+func (m *CredentialManager) ensureWritable() error {
+	dir := filepath.Dir(m.path)
+	probe, err := os.CreateTemp(dir, ".credentials-probe-*")
+	if err != nil {
+		return fmt.Errorf("credentials directory %s is not writable: %w", dir, err)
+	}
+	name := probe.Name()
+	_ = probe.Close()
+	_ = os.Remove(name)
+	return nil
 }
 
 // load reads and parses the credentials file, preserving unknown fields.
